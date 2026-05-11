@@ -399,6 +399,12 @@ Upon completing this project, you should be able to:
 7. ✅ Write comprehensive test suites for algorithmic code
 8. ✅ Document technical implementations with complexity analysis
 
+## Additional Documents
+
+- Technical report (practical/system) at [`technical_report.md`](technical_report.md)
+- Theoretical analysis (deep dive on A*) at [`theoretical_analysis.md`](theoretical_analysis.md)
+
+PDF versions can be generated from these markdown files; see the project root for `technical_report.md` and `theoretical_analysis.md`.
 ## References
 
 - Cormen, T. H., et al. (2009). "Introduction to Algorithms" (3rd ed.)

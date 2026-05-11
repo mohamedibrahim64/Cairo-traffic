@@ -399,6 +399,12 @@ If congestion ≥ 0.8: speed = 20 km/h
 
 ## 9. Conclusion
 
+## Appendix: Theoretical Analysis
+
+The in-depth theoretical analysis for the A* algorithm (proof, complexity, modifications and optimizations) has been moved to a separate document to satisfy the course submission requirements and to keep practical and theoretical deliverables distinct.
+
+See: [Theoretical Analysis — A* Search](theoretical_analysis.md)
+
 The implemented Cairo Transportation Optimization System successfully demonstrates the application of multiple algorithmic approaches to real-world urban transportation challenges. With 85%+ test coverage and documented complexity analysis, the system is production-ready for the Cairo metropolitan area with a population of 4 million+ people.
 
 **Key Results:**
