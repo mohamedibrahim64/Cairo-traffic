@@ -1,0 +1,16 @@
+﻿network-data: OK (neighborhoods=15, facilities=10)
+shortest-path: OK (path_len=2, distance=10.2)
+compare-algorithms: OK (algos=3)
+ - Dijkstra: distance=16.299999999999997 time=0.0
+ - A* Search: distance=14.6 time=0.0
+ - Greedy: distance= time=0.0
+predict-traffic: FAIL - {
+    "hour":  8,
+    "prediction":  2316.8138369929234,
+    "road_id":  "1-3",
+    "success":  true
+}
+optimize-signals: OK (intersections=0)
+optimize-transit: OK (max_passengers=540000)
+mst: OK (edges=20)
+emergency-route: OK (path_len=2, est_time=6.75)

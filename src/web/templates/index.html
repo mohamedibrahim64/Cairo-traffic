@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="page-title">
+        <i class="fas fa-chart-line"></i> 
+        Cairo Smart City Transportation Dashboard
+    </h1>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stat-card bg-gradient-primary">
+                <div class="stat-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="total-population">0</h3>
+                    <p>Total Population</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stat-card bg-gradient-success">
+                <div class="stat-icon">
+                    <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="total-neighborhoods">0</h3>
+                    <p>Neighborhoods</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stat-card bg-gradient-warning">
+                <div class="stat-icon">
+                    <i class="fas fa-road"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="total-roads">0</h3>
+                    <p>Roads</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stat-card bg-gradient-danger">
+                <div class="stat-icon">
+                    <i class="fas fa-subway"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="daily-transit">0</h3>
+                    <p>Daily Transit Users</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Map and Charts Row -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-map"></i> Cairo Transportation Network</h5>
+                </div>
+                <div class="card-body">
+                    <div id="network-map" style="height: 500px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-bar"></i> Traffic Patterns</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="trafficChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-pie"></i> Road Conditions</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="roadConditionChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-bolt"></i> Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <a href="/traffic" class="btn btn-primary btn-lg w-100 mb-2">
+                                <i class="fas fa-route"></i> Find Route
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/emergency" class="btn btn-danger btn-lg w-100 mb-2">
+                                <i class="fas fa-ambulance"></i> Emergency Route
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/infrastructure" class="btn btn-success btn-lg w-100 mb-2">
+                                <i class="fas fa-project-diagram"></i> Optimize Network
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/comparison" class="btn btn-info btn-lg w-100 mb-2">
+                                <i class="fas fa-balance-scale"></i> Compare Algorithms
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load dashboard data
+    loadDashboardStats();
+    loadNetworkMap();
+    loadTrafficChart();
+    loadRoadConditionChart();
+});
+
+async function loadDashboardStats() {
+    try {
+        const response = await fetch('/api/statistics');
+        const data = await response.json();
+        
+        document.getElementById('total-population').textContent = 
+            (data.total_population / 1000000).toFixed(1) + 'M';
+        document.getElementById('total-neighborhoods').textContent = 
+            data.neighborhoods;
+        document.getElementById('total-roads').textContent = 
+            data.roads + ' (+' + data.planned_roads + ')';
+        document.getElementById('daily-transit').textContent = 
+            (data.daily_transit_users / 1000000).toFixed(1) + 'M';
+    } catch (error) {
+        console.error('Error loading dashboard stats:', error);
+    }
+}
+
+function loadNetworkMap() {
+    const map = L.map('network-map').setView([30.0444, 31.2357], 11);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    
+    // Load network data
+    fetch('/api/network-data')
+        .then(response => response.json())
+        .then(data => {
+            // Add neighborhoods
+            data.neighborhoods.forEach(n => {
+                const color = getNodeColor(n.type);
+                L.circleMarker([n.y, n.x], {
+                    radius: 8,
+                    fillColor: color,
+                    color: color,
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.7
+                })
+                .bindPopup(`<b>${n.name}</b><br>Population: ${n.population.toLocaleString()}<br>Type: ${n.type}`)
+                .addTo(map);
+            });
+            
+            // Add roads
+            data.roads.forEach(road => {
+                const fromNode = data.neighborhoods.find(n => n.id === road.from) || 
+                                data.facilities.find(f => f.id === road.from);
+                const toNode = data.neighborhoods.find(n => n.id === road.to) || 
+                              data.facilities.find(f => f.id === road.to);
+                
+                if (fromNode && toNode) {
+                    L.polyline([[fromNode.y, fromNode.x], [toNode.y, toNode.x]], {
+                        color: '#95a5a6',
+                        weight: 2,
+                        opacity: 0.6
+                    }).bindPopup(`Distance: ${road.distance}km<br>Capacity: ${road.capacity}`)
+                    .addTo(map);
+                }
+            });
+        });
+}
+
+function getNodeColor(type) {
+    const colors = {
+        'Residential': '#2ecc71',
+        'Business': '#3498db',
+        'Mixed': '#f39c12',
+        'Industrial': '#e74c3c',
+        'Government': '#9b59b6'
+    };
+    return colors[type] || '#95a5a6';
+}
+
+function loadTrafficChart() {
+    const ctx = document.getElementById('trafficChart').getContext('2d');
+    const hours = Array.from({length: 24}, (_, i) => i);
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: hours,
+            datasets: [{
+                label: 'Morning Pattern',
+                data: hours.map(h => 800 + 800 * Math.sin(Math.PI * h / 12)),
+                borderColor: '#FF6B6B',
+                tension: 0.4,
+                fill: true,
+                backgroundColor: 'rgba(255, 107, 107, 0.1)'
+            }, {
+                label: 'Afternoon Pattern',
+                data: hours.map(h => 1000 + 600 * Math.sin(Math.PI * (h - 6) / 12)),
+                borderColor: '#4ECDC4',
+                tension: 0.4,
+                fill: true,
+                backgroundColor: 'rgba(78, 205, 196, 0.1)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Traffic Volume' }
+                },
+                x: {
+                    title: { display: true, text: 'Hour' }
+                }
+            }
+        }
+    });
+}
+
+function loadRoadConditionChart() {
+    const ctx = document.getElementById('roadConditionChart').getContext('2d');
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Excellent (8-10)', 'Good (6-7)', 'Fair (4-5)', 'Poor (<4)'],
+            datasets: [{
+                data: [8, 10, 3, 2],
+                backgroundColor: ['#2ecc71', '#f1c40f', '#e67e22', '#e74c3c']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

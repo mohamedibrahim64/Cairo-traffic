@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="page-title"><i class="fas fa-balance-scale"></i> Algorithm Comparison</h1>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Comparison Controls</h5></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4"><label class="form-label">Start</label><input id="cmp-start" class="form-control" value="1"></div>
+                        <div class="col-md-4"><label class="form-label">End</label><input id="cmp-end" class="form-control" value="5"></div>
+                        <div class="col-md-4"><label class="form-label">Hour</label><input id="cmp-hour" type="number" class="form-control" value="10" min="0" max="23"></div>
+                    </div>
+                    <button id="compare-btn" class="btn btn-info mt-3">Run Comparison</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Results</h5></div>
+                <div class="card-body">
+                    <canvas id="comparisonChart" height="260"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let comparisonChart;
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('compare-btn').addEventListener('click', runComparison);
+});
+
+async function runComparison() {
+    const start = document.getElementById('cmp-start').value;
+    const end = document.getElementById('cmp-end').value;
+    const timeHour = parseInt(document.getElementById('cmp-hour').value, 10);
+    const result = await api.compareAlgorithms(start, end, timeHour);
+
+    if (!result.success) {
+        alert(result.error || 'Comparison failed.');
+        return;
+    }
+
+    const ctx = document.getElementById('comparisonChart').getContext('2d');
+    if (comparisonChart) {
+        comparisonChart.destroy();
+    }
+    
+    // Filter results to handle null distances (incomplete paths)
+    const validResults = result.results.filter(item => item.distance !== null);
+    const allResults = result.results;
+    
+    // Create datasets with all algorithms, but mark incomplete ones
+    const timeData = allResults.map(item => item.time || 0);
+    const distanceData = allResults.map(item => {
+        if (item.distance === null) {
+            return null; // Will create gap in chart
+        }
+        return item.distance;
+    });
+    
+    comparisonChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: allResults.map(item => {
+                const label = item.name;
+                // Mark incomplete paths
+                if (item.distance === null) {
+                    return label + ' (Incomplete)';
+                }
+                return label;
+            }),
+            datasets: [
+                { 
+                    label: 'Execution time (ms)', 
+                    data: timeData, 
+                    backgroundColor: '#3498db',
+                    yAxisID: 'y'
+                },
+                { 
+                    label: 'Distance (km)', 
+                    data: distanceData, 
+                    backgroundColor: '#e67e22',
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                annotation: {
+                    drawTime: 'afterDatasetsDraw'
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: true, text: 'Time (ms)' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: { display: true, text: 'Distance (km)' },
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+    
+    // Show note about greedy if it's incomplete
+    const greedyResult = allResults.find(r => r.name === 'Greedy');
+    if (greedyResult && greedyResult.distance === null) {
+        console.info('Greedy algorithm could not find a complete path for this route.');
+    }
+}
+</script>
+{% endblock %}

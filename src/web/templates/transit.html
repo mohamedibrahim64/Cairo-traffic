@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="page-title"><i class="fas fa-bus"></i> Transit Optimization</h1>
+
+    <div class="row">
+        <div class="col-lg-7">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Transit Scheduling</h5></div>
+                <div class="card-body">
+                    <button id="optimize-transit-btn" class="btn btn-primary mb-3">Optimize Bus Schedules</button>
+                    <div id="transit-results" class="small text-muted">Run the optimizer to see bus assignment results.</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Demand Overview</h5></div>
+                <div class="card-body">
+                    <canvas id="transitChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Network Notes</h5></div>
+                <div class="card-body">
+                    <p class="mb-2">This page exposes the transit scheduling API and the core fleet summary from the bundled dataset.</p>
+                    <ul class="mb-0">
+                        <li>Metro lines and bus routes loaded from the dataset</li>
+                        <li>Dynamic programming used for assignment optimization</li>
+                        <li>Result returned as passengers served and hours used</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('optimize-transit-btn').addEventListener('click', optimizeTransit);
+
+    const ctx = document.getElementById('transitChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Metro', 'Bus', 'Private Cars', 'Walking'],
+            datasets: [{
+                data: [45, 30, 20, 5],
+                backgroundColor: ['#3498db', '#2ecc71', '#e67e22', '#95a5a6']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+});
+
+async function optimizeTransit() {
+    const result = await api.optimizeTransit();
+    const output = document.getElementById('transit-results');
+
+    if (!result.success) {
+        output.className = 'alert alert-danger';
+        output.textContent = result.error || 'Unable to optimize transit.';
+        return;
+    }
+
+    output.className = 'alert alert-success';
+    output.innerHTML = `
+        <strong>Passengers served:</strong> ${result.max_passengers}<br>
+        <strong>Total hours used:</strong> ${result.total_hours}<br>
+        <strong>Assignments:</strong> ${result.assignments.length}
+    `;
+}
+</script>
+{% endblock %}

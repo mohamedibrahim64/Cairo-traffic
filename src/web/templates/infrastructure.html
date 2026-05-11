@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="page-title"><i class="fas fa-road"></i> Infrastructure Optimization</h1>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Network Overview</h5></div>
+                <div class="card-body">
+                    <div id="infrastructure-map" style="height: 520px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Design Actions</h5></div>
+                <div class="card-body">
+                    <button id="load-mst-btn" class="btn btn-success w-100 mb-3">Build MST</button>
+                    <div id="mst-summary" class="small text-muted">Click to calculate the minimum spanning tree for the current network.</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Cost Effectiveness</h5></div>
+                <div class="card-body">
+                    <canvas id="mstChart" height="220"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let infrastructureMap;
+let mstLayerGroup;
+let mstChart;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    infrastructureMap = L.map('infrastructure-map').setView([30.0444, 31.2357], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(infrastructureMap);
+    mstLayerGroup = L.layerGroup().addTo(infrastructureMap);
+
+    const data = await api.getNetworkData();
+    data.neighborhoods.forEach(n => L.circleMarker([n.y, n.x], {radius: 7, color: '#2ecc71'}).bindPopup(n.name).addTo(infrastructureMap));
+    data.facilities.forEach(f => L.marker([f.y, f.x]).bindPopup(f.name).addTo(infrastructureMap));
+
+    document.getElementById('load-mst-btn').addEventListener('click', loadMst);
+});
+
+async function loadMst() {
+    const result = await api.computeMST(true);
+    if (!result.success) {
+        alert(result.error || 'Unable to compute MST');
+        return;
+    }
+
+    // Draw MST edges on the map
+    mstLayerGroup.clearLayers();
+    result.edges.forEach(edge => {
+        const color = edge.type === 'New' ? '#e67e22' : '#27ae60';
+        L.polyline([
+            [edge.from.y, edge.from.x],
+            [edge.to.y, edge.to.x]
+        ], {
+            color,
+            weight: 4,
+            opacity: 0.85
+        }).bindPopup(`${edge.from.name} → ${edge.to.name}<br>Type: ${edge.type}<br>Weight: ${edge.weight}`).addTo(mstLayerGroup);
+    });
+
+    if (result.edges.length > 0) {
+        const coordinates = [];
+        result.edges.forEach(edge => {
+            coordinates.push([edge.from.y, edge.from.x]);
+            coordinates.push([edge.to.y, edge.to.x]);
+        });
+        infrastructureMap.fitBounds(coordinates, { padding: [40, 40] });
+    }
+
+    const existingCost = result.cost_analysis?.total_existing_cost_million || 0;
+    const optimizedCost = result.cost_analysis?.total_cost_million || 0;
+    const savings = Math.max(existingCost - optimizedCost, 0);
+
+    const chart = document.getElementById('mstChart').getContext('2d');
+    if (mstChart) {
+        mstChart.destroy();
+    }
+    mstChart = new Chart(chart, {
+        type: 'bar',
+        data: {
+            labels: ['Existing Cost', 'Optimized Cost', 'Savings'],
+            datasets: [{
+                label: 'Million EGP',
+                data: [existingCost, optimizedCost, savings],
+                backgroundColor: ['#95a5a6', '#27ae60', '#2980b9']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    document.getElementById('mst-summary').textContent = `MST built with ${result.edges.length} connections and ${savings.toFixed(2)}M EGP estimated savings.`;
+}
+</script>
+{% endblock %}

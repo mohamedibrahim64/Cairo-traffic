@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="page-title"><i class="fas fa-ambulance"></i> Emergency Response</h1>
+
+    <div class="row">
+        <div class="col-lg-7">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Emergency Route Planner</h5></div>
+                <div class="card-body">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Incident Location</label>
+                            <select id="emergency-start" class="form-select"></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Hospital</label>
+                            <select id="emergency-hospital" class="form-select"></select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button id="plan-emergency-btn" class="btn btn-danger w-100">Plan</button>
+                        </div>
+                    </div>
+                    <div id="emergency-map" style="height: 420px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Dispatch Status</h5></div>
+                <div class="card-body">
+                    <div id="emergency-status" class="alert alert-secondary mb-0">Choose locations to calculate an emergency route.</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Response Metrics</h5></div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li>Priority routing via A*</li>
+                        <li>Fast dispatch decisions</li>
+                        <li>Hospital-aware destination selection</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let emergencyMap;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    emergencyMap = L.map('emergency-map').setView([30.0444, 31.2357], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(emergencyMap);
+
+    const data = await api.getNetworkData();
+    const start = document.getElementById('emergency-start');
+    const hospital = document.getElementById('emergency-hospital');
+
+    data.neighborhoods.forEach(n => {
+        start.innerHTML += `<option value="${n.id}">${n.name}</option>`;
+        L.circleMarker([n.y, n.x], {radius: 6, color: '#3498db'}).bindPopup(n.name).addTo(emergencyMap);
+    });
+    data.facilities.filter(f => /hospital/i.test(f.name)).forEach(f => {
+        hospital.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+        L.marker([f.y, f.x]).bindPopup(f.name).addTo(emergencyMap);
+    });
+
+    document.getElementById('plan-emergency-btn').addEventListener('click', planEmergency);
+});
+
+async function planEmergency() {
+    const start = document.getElementById('emergency-start').value;
+    const hospital = document.getElementById('emergency-hospital').value;
+    const status = document.getElementById('emergency-status');
+
+    if (!start || !hospital) {
+        status.className = 'alert alert-warning mb-0';
+        status.textContent = 'Select both an incident location and hospital.';
+        return;
+    }
+
+    // Show loading
+    status.className = 'alert alert-info mb-0';
+    status.textContent = 'Calculating route...';
+
+    const result = await api.getEmergencyRoute(start, hospital, 3);
+    if (!result.success) {
+        status.className = 'alert alert-danger mb-0';
+        status.textContent = result.error || 'Unable to calculate emergency route.';
+        return;
+    }
+
+    // Clear previous route from map
+    emergencyMap.eachLayer(layer => {
+        if (layer instanceof L.Polyline && !(layer instanceof L.CircleMarker)) {
+            emergencyMap.removeLayer(layer);
+        }
+    });
+
+    // Draw route path on map
+    if (result.osrm_geometry && result.osrm_geometry.length > 0) {
+        const coords = result.osrm_geometry.map(c => [c.y, c.x]);
+        L.polyline(coords, { color: '#e74c3c', weight: 4, opacity: 0.95 }).addTo(emergencyMap);
+        emergencyMap.fitBounds(coords, { padding: [50, 50] });
+    } else if (result.segments && result.segments.length > 0) {
+        const allCoords = [];
+        result.segments.forEach(seg => {
+            const coords = seg.coords.map(c => [c.y, c.x]);
+            L.polyline(coords, { color: '#e74c3c', weight: 4, opacity: 0.9 }).addTo(emergencyMap);
+            allCoords.push(...coords);
+        });
+        if (allCoords.length > 0) emergencyMap.fitBounds(allCoords, { padding: [50, 50] });
+    } else if (result.path && result.path.length > 0) {
+        const coordinates = result.path.map(node => [node.y, node.x]);
+        L.polyline(coordinates, {
+            color: '#e74c3c',
+            weight: 4,
+            opacity: 0.9
+        }).addTo(emergencyMap);
+
+        // Fit map to route
+        emergencyMap.fitBounds(coordinates, { padding: [50, 50] });
+    }
+
+    // Update status with route info
+    status.className = 'alert alert-success mb-0';
+    const time = result.estimated_time ? result.estimated_time.toFixed(1) : 'N/A';
+    const distance = result.distance ? result.distance.toFixed(1) : 'N/A';
+    const nodes = result.nodes_explored || 0;
+    status.textContent = `Route found: ${distance} km in ${time} minutes (${nodes} nodes explored).`;
+}
+</script>
+{% endblock %}
