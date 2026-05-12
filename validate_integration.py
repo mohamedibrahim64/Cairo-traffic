@@ -38,6 +38,21 @@ class IntegrationValidator:
         }
         self.results.append(result)
         print(f"{result['status']} {component}: {message}")
+
+    def _road_exists(self, a, b):
+        for road in self.data.roads:
+            if (road.from_id == a and road.to_id == b) or \
+               (road.from_id == b and road.to_id == a):
+                return True
+        return False
+
+    def _path_uses_roads(self, path):
+        if not path:
+            return True
+        for i in range(len(path) - 1):
+            if not self._road_exists(path[i], path[i + 1]):
+                return False
+        return True
     
     def validate_all(self):
         """Run all validation checks"""
@@ -105,6 +120,18 @@ class IntegrationValidator:
             # Check traffic patterns
             assert len(self.data.traffic_patterns) > 0, "Should have traffic patterns"
             self.log("Data: Traffic Patterns", True, f"Loaded {len(self.data.traffic_patterns)} patterns")
+
+            # Check provided dataset sizes
+            assert len(self.data.potential_roads) == 15, "Should have 15 potential roads"
+            self.log("Data: Potential Roads", True, "Loaded 15 potential roads")
+            assert len(self.data.traffic_patterns) == 28, "Should have 28 traffic patterns"
+            self.log("Data: Traffic Patterns (Full)", True, "Loaded 28 patterns")
+            assert len(self.data.metro_lines) == 3, "Should have 3 metro lines"
+            self.log("Data: Metro Lines", True, "Loaded 3 metro lines")
+            assert len(self.data.bus_routes) == 10, "Should have 10 bus routes"
+            self.log("Data: Bus Routes", True, "Loaded 10 bus routes")
+            assert len(self.data.transport_demand) == 17, "Should have 17 demand entries"
+            self.log("Data: Transport Demand", True, "Loaded 17 demand entries")
             
         except Exception as e:
             self.log("Data Loading", False, str(e))
@@ -118,11 +145,13 @@ class IntegrationValidator:
             path, distance = sp.dijkstra(1, 3, 10)
             assert isinstance(path, list), "Path should be list"
             assert isinstance(distance, (int, float)), "Distance should be numeric"
+            assert self._path_uses_roads(path), "Dijkstra path should follow roads"
             self.log("Dijkstra: Basic Routing", True, f"Path found: {path}, Distance: {distance:.2f} km")
             
             # Test with different time
             path_peak, distance_peak = sp.dijkstra(1, 3, 17)
             assert distance_peak > 0, "Peak hour path should have positive distance"
+            assert self._path_uses_roads(path_peak), "Peak-hour path should follow roads"
             self.log("Dijkstra: Time-Aware", True, f"Peak hour distance: {distance_peak:.2f} km")
             
             # Test memoization
@@ -148,6 +177,7 @@ class IntegrationValidator:
             result = astar.find_path(1, 3)
             assert result['success'], "Path should be found"
             assert len(result['path']) > 0, "Path should not be empty"
+            assert self._path_uses_roads(result['path']), "A* path should follow roads"
             self.log("A*: Basic Emergency Routing", True, f"Found path: {result['path']}")
             
             # Test with priority

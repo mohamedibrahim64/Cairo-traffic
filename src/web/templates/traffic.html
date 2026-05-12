@@ -5,7 +5,7 @@
     <h1 class="page-title">
         <i class="fas fa-traffic-light"></i> Traffic Flow Optimization
     </h1>
-    
+
     <div class="row">
         <!-- Route Planning -->
         <div class="col-lg-7">
@@ -34,7 +34,7 @@
                             </button>
                         </div>
                     </div>
-                    
+
                     <!-- Algorithm Selection -->
                     <div class="row mb-3">
                         <div class="col-md-3">
@@ -42,6 +42,7 @@
                             <select id="algorithm-select" class="form-select">
                                 <option value="dijkstra">Dijkstra</option>
                                 <option value="astar">A* Search</option>
+                                <option value="time_varying">Time-Varying</option>
                                 <option value="greedy">Greedy</option>
                             </select>
                         </div>
@@ -56,14 +57,14 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Avoid Roads (optional)</label>
-                            <input type="text" id="avoid-roads" class="form-control" 
-                                   placeholder="Enter road IDs separated by commas">
+                            <input type="text" id="avoid-roads" class="form-control"
+                                placeholder="Enter road IDs separated by commas">
                         </div>
                     </div>
-                    
+
                     <!-- Route Map -->
                     <div id="route-map" style="height: 400px;"></div>
-                    
+
                     <!-- Route Info -->
                     <div id="route-info" class="mt-3" style="display: none;">
                         <div class="alert alert-success">
@@ -72,12 +73,13 @@
                             <p><strong>Path:</strong> <span id="route-path"></span></p>
                             <p><strong>Algorithm:</strong> <span id="route-algorithm"></span></p>
                             <p><strong>Estimated Time:</strong> <span id="route-time"></span> minutes</p>
+                            <p id="route-note" class="text-muted small mb-0"></p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        
+
         <!-- Traffic Signal Optimization -->
         <div class="col-lg-5">
             <div class="card mb-3">
@@ -94,13 +96,13 @@
                     <button id="optimize-signals-btn" class="btn btn-warning w-100">
                         <i class="fas fa-magic"></i> Optimize Signals
                     </button>
-                    
+
                     <div id="signal-results" class="mt-3" style="display: none;">
                         <!-- Optimization results -->
                     </div>
                 </div>
             </div>
-            
+
             <!-- Time-Varying Analysis -->
             <div class="card">
                 <div class="card-header">
@@ -125,126 +127,136 @@
 
 {% block extra_js %}
 <script>
-let routeMap;
+    let routeMap;
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize map
-    routeMap = L.map('route-map').setView([30.0444, 31.2357], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(routeMap);
-    
-    loadLocationDropdowns();
-    loadIntersections();
-    initializeEventListeners();
-});
+    document.addEventListener('DOMContentLoaded', function () {
+        // Initialize map
+        routeMap = L.map('route-map').setView([30.0444, 31.2357], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(routeMap);
 
-async function loadLocationDropdowns() {
-    try {
-        const response = await fetch('/api/network-data');
-        const data = await response.json();
-        
-        const startSelect = document.getElementById('start-node');
-        const endSelect = document.getElementById('end-node');
-        
-        // Add neighborhoods
-        data.neighborhoods.forEach(n => {
-            startSelect.innerHTML += `<option value="${n.id}">${n.name}</option>`;
-            endSelect.innerHTML += `<option value="${n.id}">${n.name}</option>`;
-        });
-        
-        // Add facilities
-        data.facilities.forEach(f => {
-            startSelect.innerHTML += `<option value="${f.id}">${f.name}</option>`;
-            endSelect.innerHTML += `<option value="${f.id}">${f.name}</option>`;
-        });
-    } catch (error) {
-        console.error('Error loading locations:', error);
-    }
-}
-
-function initializeEventListeners() {
-    document.getElementById('find-route-btn').addEventListener('click', findRoute);
-    document.getElementById('optimize-signals-btn').addEventListener('click', optimizeSignals);
-}
-
-async function findRoute() {
-    const start = document.getElementById('start-node').value;
-    const end = document.getElementById('end-node').value;
-    const algorithm = document.getElementById('algorithm-select').value;
-    const timeHour = parseInt(document.getElementById('time-select').value);
-    
-    if (!start || !end) {
-        alert('Please select start and end locations');
-        return;
-    }
-    
-    // Show loading
-    document.getElementById('find-route-btn').disabled = true;
-    document.getElementById('find-route-btn').innerHTML = 
-        '<span class="spinner-border spinner-border-sm"></span> Calculating...';
-    
-    try {
-        const response = await fetch('/api/shortest-path', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ start, end, algorithm, time_hour: timeHour })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            displayRoute(result);
-        } else {
-            alert('Error: ' + result.error);
-        }
-    } catch (error) {
-        console.error('Error finding route:', error);
-        alert('Error calculating route');
-    } finally {
-        document.getElementById('find-route-btn').disabled = false;
-        document.getElementById('find-route-btn').innerHTML = 
-            '<i class="fas fa-search"></i> Find Route';
-    }
-}
-
-function displayRoute(result) {
-    // Clear previous route
-    routeMap.eachLayer(layer => {
-        if (layer instanceof L.Polyline && layer.options.color === '#e74c3c') {
-            routeMap.removeLayer(layer);
-        }
+        loadLocationDropdowns();
+        loadIntersections();
+        initializeEventListeners();
     });
-    
-    // Draw new route. Prefer segment geometry if provided.
-    const allCoords = [];
-    if (result.osrm_geometry && result.osrm_geometry.length > 0) {
-        // Draw OSRM-provided geometry that follows roads
-        const coords = result.osrm_geometry.map(c => [c.y, c.x]);
-        L.polyline(coords, { color: '#e74c3c', weight: 4, opacity: 0.95 }).addTo(routeMap);
-        allCoords.push(...coords);
-    } else if (result.segments && result.segments.length > 0) {
-        result.segments.forEach(seg => {
-            const coords = seg.coords.map(c => [c.y, c.x]);
-            L.polyline(coords, { color: '#e74c3c', weight: 4, opacity: 0.9 }).addTo(routeMap);
-            allCoords.push(...coords);
-        });
-    } else {
-        const coordinates = result.path.map(node => [node.y, node.x]);
-        L.polyline(coordinates, { color: '#e74c3c', weight: 4, opacity: 0.8 }).addTo(routeMap);
-        allCoords.push(...coordinates);
+
+    async function loadLocationDropdowns() {
+        try {
+            const response = await fetch('/api/network-data');
+            const data = await response.json();
+
+            const startSelect = document.getElementById('start-node');
+            const endSelect = document.getElementById('end-node');
+
+            // Add neighborhoods
+            data.neighborhoods.forEach(n => {
+                startSelect.innerHTML += `<option value="${n.id}">${n.name}</option>`;
+                endSelect.innerHTML += `<option value="${n.id}">${n.name}</option>`;
+            });
+
+            // Add facilities
+            data.facilities.forEach(f => {
+                startSelect.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+                endSelect.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+            });
+        } catch (error) {
+            console.error('Error loading locations:', error);
+        }
     }
-    
-    // Fit map to route
-    if (allCoords.length > 0) routeMap.fitBounds(allCoords, { padding: [50, 50] });
-    
-    // Display route info
-    document.getElementById('route-info').style.display = 'block';
-    document.getElementById('route-distance').textContent = (result.distance && isFinite(result.distance)) ? result.distance.toFixed(2) : 'N/A';
-    document.getElementById('route-path').textContent = 
-        result.path.map(n => n.name).join(' → ');
-    document.getElementById('route-algorithm').textContent = 
-        result.algorithm.toUpperCase();
-    document.getElementById('route-time').textContent = 
-        ((result.distance / 40) * 60).toFixed(1);
-}
+
+    function initializeEventListeners() {
+        document.getElementById('find-route-btn').addEventListener('click', findRoute);
+        document.getElementById('optimize-signals-btn').addEventListener('click', optimizeSignals);
+    }
+
+    async function findRoute() {
+        const start = document.getElementById('start-node').value;
+        const end = document.getElementById('end-node').value;
+        const algorithm = document.getElementById('algorithm-select').value;
+        const timeHour = parseInt(document.getElementById('time-select').value);
+        const avoidRoads = document.getElementById('avoid-roads').value;
+
+        if (!start || !end) {
+            alert('Please select start and end locations');
+            return;
+        }
+
+        // Show loading
+        document.getElementById('find-route-btn').disabled = true;
+        document.getElementById('find-route-btn').innerHTML =
+            '<span class="spinner-border spinner-border-sm"></span> Calculating...';
+
+        try {
+            const response = await fetch('/api/shortest-path', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start, end, algorithm, time_hour: timeHour, avoid_roads: avoidRoads })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                displayRoute(result);
+            } else {
+                alert('Error: ' + result.error);
+            }
+        } catch (error) {
+            console.error('Error finding route:', error);
+            alert('Error calculating route');
+        } finally {
+            document.getElementById('find-route-btn').disabled = false;
+            document.getElementById('find-route-btn').innerHTML =
+                '<i class="fas fa-search"></i> Find Route';
+        }
+    }
+
+    function displayRoute(result) {
+        // Clear previous route
+        routeMap.eachLayer(layer => {
+            if (layer instanceof L.Polyline && layer.options.color === '#e74c3c') {
+                routeMap.removeLayer(layer);
+            }
+        });
+
+        // Draw new route. Prefer segment geometry if provided.
+        const allCoords = [];
+        if (result.osrm_geometry && result.osrm_geometry.length > 0) {
+            // Draw OSRM-provided geometry that follows roads
+            const coords = result.osrm_geometry.map(c => [c.y, c.x]);
+            L.polyline(coords, { color: '#e74c3c', weight: 4, opacity: 0.95 }).addTo(routeMap);
+            allCoords.push(...coords);
+        } else if (result.segments && result.segments.length > 0) {
+            result.segments.forEach(seg => {
+                const coords = seg.coords.map(c => [c.y, c.x]);
+                L.polyline(coords, { color: '#e74c3c', weight: 4, opacity: 0.9 }).addTo(routeMap);
+                allCoords.push(...coords);
+            });
+        } else {
+            const coordinates = result.path.map(node => [node.y, node.x]);
+            L.polyline(coordinates, { color: '#e74c3c', weight: 4, opacity: 0.8 }).addTo(routeMap);
+            allCoords.push(...coordinates);
+        }
+
+        // Fit map to route
+        if (allCoords.length > 0) routeMap.fitBounds(allCoords, { padding: [50, 50] });
+
+        // Display route info
+        document.getElementById('route-info').style.display = 'block';
+        document.getElementById('route-distance').textContent = (result.distance && isFinite(result.distance)) ? result.distance.toFixed(2) : 'N/A';
+        document.getElementById('route-path').textContent =
+            result.path.map(n => n.name).join(' → ');
+        document.getElementById('route-algorithm').textContent =
+            result.algorithm.toUpperCase();
+        document.getElementById('route-time').textContent =
+            ((result.distance / 40) * 60).toFixed(1);
+
+        const note = document.getElementById('route-note');
+        if (result.time_varying && result.time_varying.recommended_route) {
+            const off = result.time_varying.off_peak_distance;
+            const peak = result.time_varying.peak_distance;
+            note.textContent = `Time-varying analysis: off-peak ${off?.toFixed ? off.toFixed(2) : 'N/A'} km, peak ${peak?.toFixed ? peak.toFixed(2) : 'N/A'} km.`;
+        } else {
+            note.textContent = '';
+        }
+    }
 </script>
 {% endblock %}

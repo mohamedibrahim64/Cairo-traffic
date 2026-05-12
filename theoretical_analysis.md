@@ -1,4 +1,4 @@
-# Theoretical Analysis — A* Search for Emergency Routing
+# Theoretical Analysis - Algorithms, Math, and Complexity
 
 **Course:** Design and Analysis of Algorithms (CSE112)
 
@@ -10,162 +10,239 @@
 
 ## Abstract
 
-This document provides an in-depth theoretical analysis of the A* search algorithm as applied to emergency vehicle routing in the Cairo Transportation project. It covers mathematical foundations, proof of correctness (optimality under admissible heuristic), complexity analysis, comparisons with alternative algorithms, specific modifications applied in the implementation (traffic-aware weights, tie-breakers), performance characteristics, and optimization opportunities.
+This report consolidates the theoretical foundations, mathematical models, proofs of correctness, and complexity analysis for all algorithms used in the Cairo Transportation project. It covers shortest-path methods (Dijkstra and A*), minimum spanning tree construction (Kruskal and Prim), dynamic programming formulations (scheduling and resource allocation), and greedy strategies (traffic signals and emergency preemption). It also clarifies the guarantees that hold under the exact implementation choices, including traffic-aware weights and heuristic biasing.
 
 ---
 
-## 1. Problem Statement
+## 1. Notation and Model
 
-We model the transportation network as a weighted graph $G=(V,E)$ where nodes represent neighborhoods and facilities and edges represent road segments with associated non-negative travel costs (time or distance). An emergency routing query is given as a pair $(s,t)$ — start and target nodes — and current traffic conditions which influence edge costs.
+We model the transportation network as a weighted graph $G=(V,E)$ with $|V|=n$ nodes and $|E|=m$ edges.
 
-Goal: compute a path from $s$ to $t$ that minimizes travel time (or a traffic-weighted cost) and do so quickly, suitable for real-time emergency dispatch.
+- A path $P = (v_0, v_1, ..., v_k)$ has cost $C(P) = \sum_{i=0}^{k-1} w(v_i, v_{i+1})$.
+- Shortest-path queries are defined by $(s,t)$ with non-negative edge weights.
 
----
+### 1.1 Traffic-weighted edge model
 
-## 2. A* Algorithm Overview
+In the shortest-path code path, the edge weight is derived from base distance and a congestion penalty. Let $d(e)$ be road distance, $c(e)$ be capacity, and $v_t(e)$ be traffic volume at hour $t$. Define congestion factor:
 
-A* maintains an `open` set of frontier nodes and a `closed` set of expanded nodes. For each node $n$ it tracks:
+$$\rho(e,t) = \frac{v_t(e)}{c(e)}$$
 
-- $g(n)$: best-known cost from start $s$ to $n$.
-- $h(n)$: heuristic estimate of cost from $n$ to goal $t$.
-- $f(n) = g(n) + h(n)$.
+The implemented weight function is piecewise:
 
-At each step, A* pops the node with smallest $f$ from the open queue and expands it. When the goal node is removed from the open set, A* reconstructs the path using parent pointers.
+$$w(e,t) = d(e) \cdot \gamma(\rho(e,t))$$
 
-A* correctness and performance depend critically on the heuristic $h(n)$.
+$$\gamma(\rho) =
+\begin{cases}
+1.5, & \rho > 0.8 \\
+1.2, & 0.5 < \rho \le 0.8 \\
+1.0, & \rho \le 0.5
+\end{cases}$$
 
----
+Thus $w(e,t) \ge d(e) \ge 0$ and standard shortest-path assumptions hold for a fixed time snapshot $t$.
 
-## 3. Mathematical Foundations and Proof of Correctness
+### 1.2 Emergency priority scaling (A* module)
 
-### 3.1 Admissibility
+In the emergency A* module, edge weights are uniformly scaled by a priority factor $\beta$:
 
-A heuristic $h(n)$ is _admissible_ if for every node $n$: $$h(n) \le h^*(n)$$ where $h^*(n)$ is the true cost of the shortest path from $n$ to $t$. If $h$ is admissible and all edge costs are non-negative, A* is guaranteed to find an optimal path.
+$$w'(e) = \beta \cdot w(e), \quad \beta \in \{1.0, 0.75, 0.5\}$$
 
-Proof sketch (standard):
-- Suppose A* returns a suboptimal goal path with cost $C_{sub}$. Let $C^*$ be the optimal cost. Consider the frontier when the algorithm first pops the goal with cost $C_{sub}$. There must exist an unexpanded node $n$ on an optimal path to the goal with $f(n) \le C^*$ by admissibility. Since $C^* < C_{sub}$, the algorithm would have expanded $n$ (or some node with $f \le C^*$) before popping the goal — contradiction. Thus A* returns an optimal path.
-
-### 3.2 Consistency (Monotonicity)
-
-A heuristic is **consistent** if for every edge $(u,v)$:$$h(u) \le w(u,v) + h(v)$$ where $w(u,v)$ is the true cost of edge $(u,v)$. Consistency implies $f$-values along any path are non-decreasing, which yields two practical benefits:
-
-1. Nodes removed from the open set have final $g$ values (no need to re-open).
-2. Simpler implementation and better performance guarantees.
-
-For Euclidean or straight-line heuristics on planar road networks, the heuristic is consistent when $w$ is travel distance or time (as long as speed model is uniform or upper-bounded).
+Uniform scaling does not change which path is optimal (the argmin is preserved), but it can affect heuristic admissibility unless the heuristic is scaled by the same $\beta$.
 
 ---
 
-## 4. Complexity Analysis
+## 2. Dijkstra's Algorithm (Shortest Path)
 
-Let $V$ be number of nodes and $E$ edges.
+### 2.1 Correctness
 
-- Time complexity (worst-case): $O((V + E) \log V)$ when using a binary heap for the open set (priority queue). This reduces to $O(E \log V)$ in typical sparse graphs.
-- Space complexity: $O(V)$ for storing $g$, $f$, parent pointers, and queue entries.
+Dijkstra's algorithm maintains a set $S$ of nodes whose shortest distance from $s$ is finalized. The key invariant is: when a node $u$ is extracted from the priority queue, $\text{dist}[u]$ equals the true shortest-path cost from $s$ to $u$ as long as all edge weights are non-negative.
 
-Average case depends heavily on the heuristic: a better heuristic (closer to $h^*$) reduces the number of expanded nodes significantly. In practice for our Cairo dataset (small V), A* expands 40–60% fewer nodes than Dijkstra's.
+Proof sketch:
+- The algorithm always extracts the smallest tentative distance.
+- Any alternative path to $u$ must pass through a node $x$ with tentative distance at least $\text{dist}[u]$.
+- Therefore no cheaper path to $u$ exists when it is extracted.
 
----
+### 2.2 Complexity
 
-## 5. Comparison with Alternatives
+- Binary heap: $O((n + m) \log n)$ time, $O(n)$ space.
+- With a Fibonacci heap: $O(m + n \log n)$ time (amortized), $O(n)$ space.
 
-- **Dijkstra's algorithm**: equivalent to A* with $h(n) = 0$. Guarantees optimality but explores more nodes; runtime does not exploit goal information.
-- **Greedy Best-First Search**: uses $h(n)$ only (ignores $g(n)$). Fast but not optimal.
-- **Bidirectional Search**: runs from both start and goal; effective if heuristic unavailable and graph undirected. Overhead in meeting condition and handling directed edges.
-
-A* strikes a balance: it is optimal (with admissible $h$) and often much faster than Dijkstra by focusing search toward the goal.
-
----
-
-## 6. Modifications Applied in Implementation
-
-We modified standard A* to handle traffic-aware, time-varying edge costs and emergency priorities. Key changes:
-
-1. **Traffic-aware edge weights**
-
-Edge cost is computed as:
-
-$$w(u,v,t) = d(u,v) \times (1 + \alpha \cdot congestion(u,v,t))$$
-
-where $d(u,v)$ is physical distance and $congestion$ is normalized traffic volume at query time. $\alpha$ is a tuning parameter (we used values between 0.0 and 1.0). This keeps edge costs non-negative.
-
-2. **Heuristic choice**
-
-We use straight-line (`Euclidean`) distance divided by a conservative maximum road speed to ensure admissibility. If $v_{max}$ is a safe upper bound on speed, then:
-
-$$h(n) = \frac{\text{euclidean}(n, t)}{v_{max}}$$
-
-This heuristic remains admissible even when actual travel time increases due to congestion (because we assume max speed when estimating minimal possible time).
-
-3. **Tie-breakers & stable ordering**
-
-We include a small tie-breaker on the priority queue (insertion order or incremental counter) to avoid pathological behavior and to make results deterministic across runs.
-
-4. **Fallback logic**
-
-For emergency routing we add a post-processing check: if greedy or heuristic choices cause dead ends (no neighbor progress), we fall back to Dijkstra from the current frontier to guarantee completion. This preserves responsiveness while ensuring correctness.
+Because the graph is sparse, $O(m \log n)$ is the typical bound.
 
 ---
 
-## 7. Proofs for Modified Algorithm
+## 3. A* Search (Emergency Routing)
 
-Because we preserved the core A* invariant (admissible heuristic) by using Euclidean distance divided by a conservative $v_{max}$, the optimality proof carries over: the heuristic underestimates or equals true minimal travel time, so A* remains optimal under our modified edge weights.
+### 3.1 Definitions
 
-Formally, for any node $n$:
+For each node $x$:
 
-$$h(n) = \frac{\text{euclidean}(n,t)}{v_{max}} \le h^*(n)$$
+- $g(x)$ is the best-known cost from $s$ to $x$.
+- $h(x)$ is a heuristic estimate of cost from $x$ to $t$.
+- $f(x) = g(x) + h(x)$.
 
-where $h^*(n)$ is shortest possible travel time given actual edge costs. This inequality holds because $v_{max}$ upper-bounds actual speeds and hence the euclidean-based time is a lower bound on true time.
+A* expands nodes in non-decreasing $f$ order.
 
-Thus, A* with this $h$ is admissible and optimal.
+### 3.2 Heuristics used
+
+Let $(x_1,y_1)$ and $(x_2,y_2)$ be coordinates:
+
+- Euclidean: $h_E = \sqrt{(x_2-x_1)^2 + (y_2-y_1)^2}$
+- Manhattan: $h_M = |x_2-x_1| + |y_2-y_1|$
+- Chebyshev: $h_C = \max(|x_2-x_1|, |y_2-y_1|)$
+- Traffic-aware: $h_T = h_E \cdot (1 + \tau)$ where $\tau$ is a local traffic penalty
+
+### 3.3 Optimality and admissibility
+
+**Admissibility:** A heuristic is admissible if $h(x) \le h^*(x)$ for all $x$.
+
+**Consistency:** A heuristic is consistent if $h(u) \le w(u,v) + h(v)$ for all edges $(u,v)$.
+
+If $h$ is admissible and costs are non-negative, A* is optimal. If $h$ is consistent, each node needs to be expanded at most once.
+
+**Important implementation note:**
+
+- The traffic-aware heuristic can overestimate actual costs, which breaks admissibility and can lead to suboptimal paths.
+- The medical-facility bonus in the implementation modifies $f$ by multiplying it by $0.8$ for certain nodes. This is a biasing heuristic and removes optimality guarantees.
+- Emergency priority scaling reduces edge costs by a constant factor $\beta < 1$. If the heuristic is not scaled by $\beta$, admissibility can be violated.
+
+Therefore, strict optimality is guaranteed only when an admissible heuristic is used and no heuristic biasing is applied.
+
+### 3.4 Completeness
+
+For finite graphs with non-negative edge costs, A* is complete as long as $h$ is finite for all nodes. Completeness still holds even if $h$ is inadmissible, but optimality does not.
+
+### 3.5 Complexity
+
+- Binary heap: $O((n + m) \log n)$ time, $O(n)$ space.
+- In terms of branching factor $b$ and depth $d$, worst-case node expansions are $O(b^d)$ when the heuristic provides no guidance.
+
+The effective branching factor $b^*$ satisfies:
+
+$$N = 1 + b^* + (b^*)^2 + \dots + (b^*)^d = \frac{(b^*)^{d+1}-1}{b^*-1}$$
+
+Smaller $b^*$ indicates a more informative heuristic.
 
 ---
 
-## 8. Performance Characteristics and Benchmarks
+## 4. Heuristic Theory (What can be asked)
 
-On the project dataset (25 nodes, ~40 edges):
+### 4.1 Dominance
 
-- Average A* query time: ~1.8 ms.
-- Nodes expanded: 8–12 vs 15–20 for Dijkstra's for the same queries.
-- Memory footprint: negligible (< 100 KB for per-query data structures).
+If two admissible heuristics satisfy $h_1(x) \ge h_2(x)$ for all $x$, then $h_1$ dominates $h_2$ and A* with $h_1$ expands no more nodes than A* with $h_2$.
 
-Micro-optimizations applied:
+### 4.2 Relation to Dijkstra
 
-- Use of binary heap with tie-breaker counter for deterministic ordering.
-- Early termination when goal popped (standard A*).
-- Use of fast coordinate lookup tables to compute heuristic in $O(1)$.
+A* with $h \equiv 0$ is identical to Dijkstra, so all Dijkstra guarantees are a special case of A*.
 
----
+### 4.3 Tie-breaking
 
-## 9. Optimization Opportunities
-
-1. **Better heuristics (learned heuristics)**
-   - Train a regression model (neural network) to predict travel time-to-go using historical traffic — if predictions are admissible (or corrected to be admissible), learned heuristics can dramatically reduce expansions.
-
-2. **Hierarchical routing**
-   - Use contraction hierarchies or highway hierarchies for large-scale networks to reduce search graph size.
-
-3. **Bidirectional A***
-   - Implement bidirectional A* with consistent heuristics on both sides for further speedups in large graphs.
-
-4. **Parallel expansion**
-   - Expand multiple frontier nodes in parallel on multicore systems for throughput.
-
-5. **Incremental search**
-   - Use D* Lite or Lifelong Planning A* for environments where traffic updates frequently but queries are many.
+Stable tie-breaking does not change correctness. It only affects which optimal path is returned when multiple shortest paths exist.
 
 ---
 
-## 10. Conclusion
+## 5. Minimum Spanning Tree (Kruskal and Prim)
 
-A* remains a strong choice for emergency vehicle routing in urban networks when combined with conservative, admissible heuristics and traffic-aware edge costs. Our modifications maintain optimality, improve practical performance, and ensure robustness for real-time dispatch.
+### 5.1 Kruskal (with critical facility bias)
+
+Kruskal sorts edges and adds them if they do not create a cycle (Union-Find). The cut property guarantees correctness: the lightest edge crossing any cut is safe to include.
+
+The implementation modifies edge weights for critical facilities. The algorithm therefore computes the MST of the modified weight function, which intentionally biases connectivity toward critical nodes. This is not necessarily the MST of the original graph.
+
+Complexity:
+
+- Sorting: $O(m \log m)$
+- Union-Find operations: $O(m \alpha(n))$ (almost constant)
+- Total: $O(m \log m)$ time, $O(n + m)$ space
+
+### 5.2 Prim (alternative)
+
+Prim grows a tree from a start node using a priority queue of boundary edges.
+
+- Binary heap: $O(m \log n)$ time, $O(n + m)$ space
 
 ---
 
-## References
+## 6. Dynamic Programming Formulations
 
-1. Hart, P., Nilsson, N., & Raphael, B. (1968). A formal basis for the heuristic determination of minimum cost paths. *IEEE Transactions on Systems Science and Cybernetics*.
-2. Russell, S., & Norvig, P. (2016). *Artificial Intelligence: A Modern Approach*.
-3. Stentz, A. (1994). Optimal and efficient path planning for partially-known environments. *International Conference on Robotics and Automation*.
+### 6.1 Bus scheduling
+
+Let $i$ be the number of buses used and $h$ be total hours. The recurrence:
+
+$$dp[i][h] = \max\left(dp[i-1][h], \max_{r: t_r \le h}\{dp[i-1][h-t_r] + demand_r\}\right)$$
+
+Time complexity in the implementation is $O(B \cdot H \cdot R)$ where $B$ is number of buses, $H$ is max hours, and $R$ is number of routes.
+
+### 6.2 Road maintenance (knapsack)
+
+For each road $i$ with improvement value $val_i$ and cost $cost_i$:
+
+$$dp[i][b] = \max(dp[i-1][b], dp[i-1][b-cost_i] + val_i)$$
+
+Complexity: $O(N \cdot B)$ time and space, where $B$ is budget.
+
+### 6.3 Metro-bus integration
+
+Let $m$ be metro lines and $b$ be bus routes. The recurrence:
+
+$$dp[i][j] = \max(dp[i][j-1], dp[i-1][j-1] + transfer(i,j))$$
+
+Complexity: $O(m \cdot b)$ time and space.
+
+### 6.4 Memoized route planning
+
+The memoized depth-first planner explores paths with a visited set. Without memoization over subsets, the worst-case time is exponential in $n$ (similar to DFS on all simple paths). It is suitable only for small graphs or constrained time budgets.
+
+---
+
+## 7. Greedy Algorithms and Guarantees
+
+### 7.1 Traffic signal optimization
+
+The greedy policy assigns green time proportional to observed flow. This is locally optimal per intersection but has no global optimality guarantee for network-wide delay.
+
+Let $I$ be the number of intersections and $R$ be the number of roads. The observed complexity is approximately $O(I \cdot R)$ for flow extraction plus $O(I \cdot D)$ for direction allocation, where $D$ is the average degree.
+
+### 7.2 Emergency vehicle preemption
+
+Emergencies are sorted by priority, then each route is granted a clear corridor. Complexity is $O(K \log K + \sum |P_k|)$ where $K$ is the number of active emergencies and $|P_k|$ is path length.
+
+### 7.3 Greedy route recommendation
+
+At each step, the neighbor with minimum local congestion score is chosen. This can be suboptimal because greedy choices ignore downstream structure. The implementation uses a Dijkstra fallback if greedy gets stuck, ensuring completeness.
+
+Worst-case complexity: $O(L \cdot d_{avg})$ for the greedy pass plus $O(m \log n)$ for the fallback shortest-path.
+
+---
+
+## 8. Complexity Summary (Big-O)
+
+| Algorithm | Time | Space | Optimality |
+| --- | --- | --- | --- |
+| Dijkstra (binary heap) | $O((n+m) \log n)$ | $O(n)$ | Yes, for $w \ge 0$ |
+| A* (binary heap) | $O((n+m) \log n)$ worst-case | $O(n)$ | Yes, if $h$ admissible and no bias |
+| Kruskal | $O(m \log m)$ | $O(n+m)$ | Yes, for given weights |
+| Prim (binary heap) | $O(m \log n)$ | $O(n+m)$ | Yes, for given weights |
+| Bus scheduling DP | $O(B \cdot H \cdot R)$ | $O(B \cdot H)$ | Yes, optimal for model |
+| Road maintenance DP | $O(N \cdot B)$ | $O(N \cdot B)$ | Yes, optimal for model |
+| Integration DP | $O(m \cdot b)$ | $O(m \cdot b)$ | Yes, optimal for model |
+| Greedy signals | $O(I \cdot R)$ | $O(I)$ | No global guarantee |
+| Greedy route + fallback | $O(L \cdot d_{avg} + m \log n)$ | $O(n)$ | Complete; optimal only with fallback |
+
+---
+
+## 9. Assumptions and Limitations
+
+- Shortest-path results are computed for a fixed traffic snapshot. The algorithm does not solve the full time-dependent shortest-path problem.
+- Heuristic biasing (traffic-aware heuristic and facility bonus) trades optimality for speed and prioritization.
+- Critical-facility weighting in MST changes the optimization objective; it is a policy choice.
+
+---
+
+## 10. References
+
+1. Hart, P., Nilsson, N., and Raphael, B. (1968). A formal basis for the heuristic determination of minimum cost paths. IEEE Transactions on Systems Science and Cybernetics.
+2. Cormen, T., Leiserson, C., Rivest, R., and Stein, C. (2009). Introduction to Algorithms.
+3. Russell, S., and Norvig, P. (2016). Artificial Intelligence: A Modern Approach.
+4. Stentz, A. (1994). Optimal and efficient path planning for partially-known environments. ICRA.
 
 

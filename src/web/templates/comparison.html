@@ -5,24 +5,87 @@
     <h1 class="page-title"><i class="fas fa-balance-scale"></i> Algorithm Comparison</h1>
 
     <div class="row">
-        <div class="col-lg-6">
+        <div class="col-lg-4">
             <div class="card mb-4">
-                <div class="card-header"><h5 class="mb-0">Comparison Controls</h5></div>
+                <div class="card-header">
+                    <h5 class="mb-0">Comparison Controls</h5>
+                </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-4"><label class="form-label">Start</label><input id="cmp-start" class="form-control" value="1"></div>
-                        <div class="col-md-4"><label class="form-label">End</label><input id="cmp-end" class="form-control" value="5"></div>
-                        <div class="col-md-4"><label class="form-label">Hour</label><input id="cmp-hour" type="number" class="form-control" value="10" min="0" max="23"></div>
+                        <div class="col-md-12"><label class="form-label">Start</label><input id="cmp-start"
+                                class="form-control" value="1"></div>
+                        <div class="col-md-12"><label class="form-label">End</label><input id="cmp-end"
+                                class="form-control" value="5"></div>
+                        <div class="col-md-12"><label class="form-label">Hour</label><input id="cmp-hour" type="number"
+                                class="form-control" value="10" min="0" max="23"></div>
                     </div>
-                    <button id="compare-btn" class="btn btn-info mt-3">Run Comparison</button>
+                    <button id="compare-btn" class="btn btn-info mt-3 w-100">Run Comparison</button>
+                    <button id="compare-times-btn" class="btn btn-outline-primary mt-2 w-100">Compare Across
+                        Times</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div id="comparison-summary" class="small text-muted">Run a comparison to see metrics.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Route Comparison Map</h5>
+                </div>
+                <div class="card-body">
+                    <div id="comparison-map" style="height: 420px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Execution Time (ms)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="timeChart" height="240"></canvas>
                 </div>
             </div>
         </div>
         <div class="col-lg-6">
             <div class="card mb-4">
-                <div class="card-header"><h5 class="mb-0">Results</h5></div>
+                <div class="card-header">
+                    <h5 class="mb-0">Route Distance (km)</h5>
+                </div>
                 <div class="card-body">
-                    <canvas id="comparisonChart" height="260"></canvas>
+                    <canvas id="distanceChart" height="240"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Efficiency (ms per km)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="efficiencyChart" height="240"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Performance Across Times</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="timeSweepChart" height="240"></canvas>
                 </div>
             </div>
         </div>
@@ -32,99 +95,182 @@
 
 {% block extra_js %}
 <script>
-let comparisonChart;
+    let timeChart;
+    let distanceChart;
+    let efficiencyChart;
+    let timeSweepChart;
+    let comparisonMap;
+    let routeLayers = [];
 
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('compare-btn').addEventListener('click', runComparison);
-});
+    const algoColors = {
+        'Dijkstra': '#3498db',
+        'A* Search': '#e74c3c',
+        'Greedy': '#f39c12',
+        'Time-Varying': '#2ecc71'
+    };
 
-async function runComparison() {
-    const start = document.getElementById('cmp-start').value;
-    const end = document.getElementById('cmp-end').value;
-    const timeHour = parseInt(document.getElementById('cmp-hour').value, 10);
-    const result = await api.compareAlgorithms(start, end, timeHour);
+    const routeAlgorithms = [
+        { key: 'dijkstra', label: 'Dijkstra' },
+        { key: 'astar', label: 'A* Search' },
+        { key: 'greedy', label: 'Greedy' },
+        { key: 'time_varying', label: 'Time-Varying' }
+    ];
 
-    if (!result.success) {
-        alert(result.error || 'Comparison failed.');
-        return;
-    }
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('compare-btn').addEventListener('click', runComparison);
+        document.getElementById('compare-times-btn').addEventListener('click', runTimeSweep);
 
-    const ctx = document.getElementById('comparisonChart').getContext('2d');
-    if (comparisonChart) {
-        comparisonChart.destroy();
-    }
-    
-    // Filter results to handle null distances (incomplete paths)
-    const validResults = result.results.filter(item => item.distance !== null);
-    const allResults = result.results;
-    
-    // Create datasets with all algorithms, but mark incomplete ones
-    const timeData = allResults.map(item => item.time || 0);
-    const distanceData = allResults.map(item => {
-        if (item.distance === null) {
-            return null; // Will create gap in chart
-        }
-        return item.distance;
+        comparisonMap = L.map('comparison-map').setView([30.0444, 31.2357], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(comparisonMap);
     });
-    
-    comparisonChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: allResults.map(item => {
-                const label = item.name;
-                // Mark incomplete paths
-                if (item.distance === null) {
-                    return label + ' (Incomplete)';
-                }
-                return label;
-            }),
-            datasets: [
-                { 
-                    label: 'Execution time (ms)', 
-                    data: timeData, 
-                    backgroundColor: '#3498db',
-                    yAxisID: 'y'
-                },
-                { 
-                    label: 'Distance (km)', 
-                    data: distanceData, 
-                    backgroundColor: '#e67e22',
-                    yAxisID: 'y1'
-                }
-            ]
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' },
-                annotation: {
-                    drawTime: 'afterDatasetsDraw'
-                }
-            },
-            scales: {
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: { display: true, text: 'Time (ms)' }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    title: { display: true, text: 'Distance (km)' },
-                    grid: { drawOnChartArea: false }
-                }
+
+    async function runComparison() {
+        const start = document.getElementById('cmp-start').value;
+        const end = document.getElementById('cmp-end').value;
+        const timeHour = parseInt(document.getElementById('cmp-hour').value, 10);
+        const result = await api.compareAlgorithms(start, end, timeHour);
+
+        if (!result.success) {
+            alert(result.error || 'Comparison failed.');
+            return;
+        }
+
+        renderSummary(result.results);
+        renderCharts(result.results);
+        await renderRoutes(start, end, timeHour);
+    }
+
+    function renderSummary(results) {
+        const summary = document.getElementById('comparison-summary');
+        const rows = results.map(item => {
+            const distance = item.distance === null ? 'N/A' : item.distance.toFixed(2);
+            const time = (item.time || 0).toFixed(2);
+            const nodes = item.nodes_explored ? `, nodes ${item.nodes_explored}` : '';
+            return `<div><span style="color:${item.color}">●</span> <strong>${item.name}</strong>: ${distance} km, ${time} ms${nodes}</div>`;
+        }).join('');
+        summary.innerHTML = rows || 'No results.';
+    }
+
+    function renderCharts(results) {
+        const labels = results.map(item => item.name);
+        const colors = results.map(item => item.color || algoColors[item.name] || '#7f8c8d');
+        const timeData = results.map(item => item.time || 0);
+        const distanceData = results.map(item => item.distance === null ? null : item.distance);
+        const efficiencyData = results.map(item => {
+            if (!item.time || !item.distance || item.distance === null) {
+                return null;
             }
-        }
-    });
-    
-    // Show note about greedy if it's incomplete
-    const greedyResult = allResults.find(r => r.name === 'Greedy');
-    if (greedyResult && greedyResult.distance === null) {
-        console.info('Greedy algorithm could not find a complete path for this route.');
+            return item.time / item.distance;
+        });
+
+        const timeCtx = document.getElementById('timeChart').getContext('2d');
+        if (timeChart) timeChart.destroy();
+        timeChart = new Chart(timeCtx, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Time (ms)', data: timeData, backgroundColor: colors }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        const distanceCtx = document.getElementById('distanceChart').getContext('2d');
+        if (distanceChart) distanceChart.destroy();
+        distanceChart = new Chart(distanceCtx, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Distance (km)', data: distanceData, backgroundColor: colors }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        const efficiencyCtx = document.getElementById('efficiencyChart').getContext('2d');
+        if (efficiencyChart) efficiencyChart.destroy();
+        efficiencyChart = new Chart(efficiencyCtx, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'ms per km', data: efficiencyData, backgroundColor: colors }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
     }
-}
+
+    async function renderRoutes(start, end, timeHour) {
+        clearRoutes();
+
+        const routePromises = routeAlgorithms.map(algo =>
+            api.getShortestPath(start, end, algo.key, timeHour)
+                .then(result => ({ algo, result }))
+                .catch(() => ({ algo, result: null }))
+        );
+
+        const responses = await Promise.all(routePromises);
+        const bounds = [];
+
+        responses.forEach(({ algo, result }) => {
+            if (!result || !result.success) {
+                return;
+            }
+
+            const color = algoColors[algo.label] || '#7f8c8d';
+            let coords = [];
+            if (result.osrm_geometry && result.osrm_geometry.length > 0) {
+                coords = result.osrm_geometry.map(c => [c.y, c.x]);
+            } else if (result.segments && result.segments.length > 0) {
+                result.segments.forEach(seg => {
+                    coords.push(...seg.coords.map(c => [c.y, c.x]));
+                });
+            } else if (result.path && result.path.length > 0) {
+                coords = result.path.map(node => [node.y, node.x]);
+            }
+
+            if (coords.length > 1) {
+                const line = L.polyline(coords, { color, weight: 4, opacity: 0.85 })
+                    .bindPopup(`${algo.label} route`)
+                    .addTo(comparisonMap);
+                routeLayers.push(line);
+                bounds.push(...coords);
+            }
+        });
+
+        if (bounds.length > 0) {
+            comparisonMap.fitBounds(bounds, { padding: [40, 40] });
+        }
+    }
+
+    function clearRoutes() {
+        routeLayers.forEach(layer => comparisonMap.removeLayer(layer));
+        routeLayers = [];
+    }
+
+    async function runTimeSweep() {
+        const start = document.getElementById('cmp-start').value;
+        const end = document.getElementById('cmp-end').value;
+        const hours = [8, 13, 18, 22];
+
+        const results = await Promise.all(hours.map(hour => api.compareAlgorithms(start, end, hour)));
+        const valid = results.filter(r => r && r.success);
+        if (valid.length === 0) {
+            alert('Unable to run time sweep.');
+            return;
+        }
+
+        const algoNames = valid[0].results.map(item => item.name);
+        const datasets = algoNames.map(name => ({
+            label: name,
+            data: [],
+            borderColor: algoColors[name] || '#7f8c8d',
+            backgroundColor: algoColors[name] || '#7f8c8d',
+            tension: 0.3,
+            fill: false
+        }));
+
+        valid.forEach(res => {
+            res.results.forEach((item, idx) => {
+                datasets[idx].data.push(item.time || 0);
+            });
+        });
+
+        const ctx = document.getElementById('timeSweepChart').getContext('2d');
+        if (timeSweepChart) timeSweepChart.destroy();
+        timeSweepChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: hours.map(h => `${h}:00`), datasets },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
 </script>
 {% endblock %}

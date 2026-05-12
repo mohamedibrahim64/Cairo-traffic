@@ -10,6 +10,7 @@ from enum import Enum
 from ..core.data_loader import CairoTransportData
 from ..algorithms.astar import AStarSearch
 from ..algorithms.shortest_path import ShortestPath
+from ..algorithms.greedy import GreedyTrafficOptimizer
 
 
 class EmergencyType(Enum):
@@ -125,8 +126,9 @@ class EmergencyDispatchCenter:
         self.vehicles: Dict[str, EmergencyVehicle] = {}
         self.active_calls: List[EmergencyCall] = deque()
         self.completed_calls: List[EmergencyCall] = []
-        self.astar = AStarSearch(data.graph, self._get_coordinates())
+        self.astar = AStarSearch(data.graph, self._get_coordinates(), data.traffic_patterns)
         self.sp = ShortestPath(data)
+        self.greedy = GreedyTrafficOptimizer(data)
         self.dispatch_history: List[Dict] = []
         self._initialize_vehicles()
 
@@ -234,11 +236,13 @@ class EmergencyDispatchCenter:
     def _dispatch_vehicle(self, vehicle: EmergencyVehicle, call: EmergencyCall):
         """Dispatch a vehicle to an emergency call"""
         # Find optimal route using A*
+        current_hour = datetime.now().hour
         route_data = self.astar.find_path(
             vehicle.current_location,
             call.location,
             heuristic_type='euclidean',
-            emergency_priority=call.severity.value
+            emergency_priority=call.severity.value,
+            time_hour=current_hour
         )
         
         route = route_data['path']
@@ -247,6 +251,21 @@ class EmergencyDispatchCenter:
         # Estimate travel time (simplified: use 60 km/h average for emergency)
         eta = distance / 60  # in hours
         
+        # Generate a basic signal preemption plan for the route
+        preemption_plan = None
+        if route:
+            signals = {node: {'N': 30, 'S': 30, 'E': 20, 'W': 20} for node in route}
+            severity_map = {
+                EmergencySeverity.CRITICAL: 'critical',
+                EmergencySeverity.HIGH: 'emergency',
+                EmergencySeverity.MEDIUM: 'urgent',
+                EmergencySeverity.LOW: 'normal'
+            }
+            preemption_plan = self.greedy.emergency_vehicle_preemption(
+                [{'type': severity_map.get(call.severity, 'urgent'), 'path': route, 'response_time': 0}],
+                signals
+            )
+
         # Dispatch vehicle
         vehicle.dispatch_to(call, route, eta)
         call.status = "dispatched"
@@ -258,7 +277,9 @@ class EmergencyDispatchCenter:
             'call': call.call_id,
             'route': route,
             'eta': eta,
-            'distance': distance
+            'distance': distance,
+            'preemption_plan': preemption_plan,
+            'time_hour': current_hour
         })
 
     def vehicle_arrived(self, vehicle_id: str):

@@ -41,10 +41,24 @@ class MinimumSpanningTree:
         # Collect all edges with weights
         edges = []
         critical_facilities = {"F9", "F10", "F1", "F2"}
+        max_population = max(
+            (n.population for n in self.data.neighborhoods.values()),
+            default=0
+        )
+
+        def population_factor(u, v) -> float:
+            pop_u = self.data.neighborhoods.get(u).population if u in self.data.neighborhoods else 0
+            pop_v = self.data.neighborhoods.get(v).population if v in self.data.neighborhoods else 0
+            if max_population <= 0:
+                return 1.0
+            pop_norm = (pop_u + pop_v) / (2 * max_population)
+            factor = 1.0 - 0.3 * pop_norm
+            return max(0.7, factor)
         
         # Add existing roads
         for road in self.data.roads:
             weight = road.distance
+            weight *= population_factor(road.from_id, road.to_id)
             # Prioritize critical facilities connections
             if prioritize_critical:
                 if str(road.from_id) in critical_facilities or \
@@ -56,6 +70,7 @@ class MinimumSpanningTree:
         # Add potential new roads
         for new_road in self.data.potential_roads:
             weight = new_road['distance'] * (new_road['construction_cost'] / 1000)
+            weight *= population_factor(new_road['from_id'], new_road['to_id'])
             if prioritize_critical:
                 if str(new_road['from_id']) in critical_facilities or \
                    str(new_road['to_id']) in critical_facilities:

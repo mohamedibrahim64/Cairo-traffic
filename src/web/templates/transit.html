@@ -7,14 +7,27 @@
     <div class="row">
         <div class="col-lg-7">
             <div class="card mb-4">
-                <div class="card-header"><h5 class="mb-0">Transit Scheduling</h5></div>
+                <div class="card-header">
+                    <h5 class="mb-0">Transit Scheduling</h5>
+                </div>
                 <div class="card-body">
                     <button id="optimize-transit-btn" class="btn btn-primary mb-3">Optimize Bus Schedules</button>
-                    <div id="transit-results" class="small text-muted">Run the optimizer to see bus assignment results.</div>
+                    <div id="transit-results" class="small text-muted">Run the optimizer to see bus assignment results.
+                    </div>
+                </div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Transit Routes Map</h5>
+                </div>
+                <div class="card-body">
+                    <div id="transit-map" style="height: 340px;"></div>
                 </div>
             </div>
             <div class="card">
-                <div class="card-header"><h5 class="mb-0">Demand Overview</h5></div>
+                <div class="card-header">
+                    <h5 class="mb-0">Demand Overview</h5>
+                </div>
                 <div class="card-body">
                     <canvas id="transitChart" height="250"></canvas>
                 </div>
@@ -22,9 +35,12 @@
         </div>
         <div class="col-lg-5">
             <div class="card">
-                <div class="card-header"><h5 class="mb-0">Network Notes</h5></div>
+                <div class="card-header">
+                    <h5 class="mb-0">Network Notes</h5>
+                </div>
                 <div class="card-body">
-                    <p class="mb-2">This page exposes the transit scheduling API and the core fleet summary from the bundled dataset.</p>
+                    <p class="mb-2">This page exposes the transit scheduling API and the core fleet summary from the
+                        bundled dataset.</p>
                     <ul class="mb-0">
                         <li>Metro lines and bus routes loaded from the dataset</li>
                         <li>Dynamic programming used for assignment optimization</li>
@@ -39,39 +55,72 @@
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('optimize-transit-btn').addEventListener('click', optimizeTransit);
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('optimize-transit-btn').addEventListener('click', optimizeTransit);
+        loadTransitMap();
 
-    const ctx = document.getElementById('transitChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Metro', 'Bus', 'Private Cars', 'Walking'],
-            datasets: [{
-                data: [45, 30, 20, 5],
-                backgroundColor: ['#3498db', '#2ecc71', '#e67e22', '#95a5a6']
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
+        const ctx = document.getElementById('transitChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Metro', 'Bus', 'Private Cars', 'Walking'],
+                datasets: [{
+                    data: [45, 30, 20, 5],
+                    backgroundColor: ['#3498db', '#2ecc71', '#e67e22', '#95a5a6']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
     });
-});
 
-async function optimizeTransit() {
-    const result = await api.optimizeTransit();
-    const output = document.getElementById('transit-results');
+    async function loadTransitMap() {
+        const map = L.map('transit-map').setView([30.0444, 31.2357], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    if (!result.success) {
-        output.className = 'alert alert-danger';
-        output.textContent = result.error || 'Unable to optimize transit.';
-        return;
+        const result = await fetch('/api/transit-data');
+        const data = await result.json();
+        if (!data.success) {
+            return;
+        }
+
+        const metroColors = ['#1abc9c', '#3498db', '#9b59b6'];
+        data.metro_lines.forEach((line, idx) => {
+            const coords = line.stations.map(s => [s.y, s.x]);
+            if (coords.length > 1) {
+                L.polyline(coords, { color: metroColors[idx % metroColors.length], weight: 4, opacity: 0.9 })
+                    .bindPopup(`${line.name} (${line.id})`)
+                    .addTo(map);
+            }
+        });
+
+        data.bus_routes.forEach(route => {
+            const coords = route.stops.map(s => [s.y, s.x]);
+            if (coords.length > 1) {
+                L.polyline(coords, { color: '#e67e22', weight: 2, opacity: 0.7, dashArray: '6, 4' })
+                    .bindPopup(`Bus ${route.id}`)
+                    .addTo(map);
+            }
+        });
     }
 
-    output.className = 'alert alert-success';
-    output.innerHTML = `
+    async function optimizeTransit() {
+        const result = await api.optimizeTransit();
+        const output = document.getElementById('transit-results');
+
+        if (!result.success) {
+            output.className = 'alert alert-danger';
+            output.textContent = result.error || 'Unable to optimize transit.';
+            return;
+        }
+
+        const integration = result.integration || {};
+        output.className = 'alert alert-success';
+        output.innerHTML = `
         <strong>Passengers served:</strong> ${result.max_passengers}<br>
         <strong>Total hours used:</strong> ${result.total_hours}<br>
-        <strong>Assignments:</strong> ${result.assignments.length}
+        <strong>Assignments:</strong> ${result.assignments.length}<br>
+        <strong>Integration score:</strong> ${(integration.integration_score || 0).toFixed(2)}
     `;
-}
+    }
 </script>
 {% endblock %}

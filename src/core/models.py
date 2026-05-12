@@ -45,6 +45,7 @@ class Road:
     distance: float
     capacity: int
     condition: int
+    source: str = "existing"
 
 @dataclass
 class TrafficPattern:

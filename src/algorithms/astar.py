@@ -14,16 +14,20 @@ class AStarSearch:
     Includes multiple heuristics and real-time traffic adaptation
     """
     
-    def __init__(self, graph, node_coordinates: Dict[Any, Tuple[float, float]]):
+    def __init__(self, graph, node_coordinates: Dict[Any, Tuple[float, float]],
+                 traffic_patterns: Optional[Dict[str, Any]] = None):
         self.graph = graph
         self.coordinates = node_coordinates
         self.memoized_heuristics = {}
+        self.traffic_patterns = traffic_patterns or {}
         
     def find_path(self, start: Any, goal: Any, 
                   heuristic_type: str = 'euclidean',
                   time_constraint: Optional[float] = None,
                   avoid_nodes: Optional[Set[Any]] = None,
-                  emergency_priority: int = 1) -> Dict:
+                  emergency_priority: int = 1,
+                  time_hour: Optional[int] = None,
+                  avoid_edges: Optional[Set[str]] = None) -> Dict:
         """
         Find optimal path using A* search
         
@@ -83,10 +87,13 @@ class AStarSearch:
             for neighbor, edge_data in self._get_neighbors(current):
                 if neighbor in closed_set or neighbor in avoid_nodes:
                     continue
+
+                if self._is_edge_avoided(current, neighbor, avoid_edges):
+                    continue
                 
                 # Calculate edge weight considering emergency priority
                 edge_weight = self._calculate_edge_weight(
-                    edge_data, emergency_priority
+                    current, neighbor, edge_data, emergency_priority, time_hour
                 )
                 
                 # Check time constraint
@@ -117,7 +124,8 @@ class AStarSearch:
     
     def emergency_route(self, start: Any, hospital: Any,
                         traffic_data: Optional[Dict] = None,
-                        road_closures: Optional[Set[str]] = None) -> Dict:
+                        road_closures: Optional[Set[str]] = None,
+                        time_hour: Optional[int] = None) -> Dict:
         """
         Specialized emergency routing with traffic awareness
         
@@ -139,7 +147,9 @@ class AStarSearch:
         result = self.find_path(
             start, hospital,
             heuristic_type=heuristic_type,
-            emergency_priority=3
+            emergency_priority=3,
+            time_hour=time_hour,
+            avoid_edges=road_closures
         )
         
         # Calculate estimated response time
@@ -357,17 +367,29 @@ class AStarSearch:
         self.memoized_heuristics[cache_key] = h
         return h
     
-    def _calculate_edge_weight(self, edge_data: Dict, priority: int) -> float:
-        """Calculate edge weight considering emergency priority"""
+    def _calculate_edge_weight(self, from_node: Any, to_node: Any, edge_data: Dict,
+                               priority: int, time_hour: Optional[int]) -> float:
+        """Calculate edge weight considering emergency priority and traffic patterns."""
         base_weight = edge_data.get('weight', 1.0)
-        
+        capacity = edge_data.get('capacity')
+
+        if time_hour is not None and self.traffic_patterns and capacity:
+            road_key = f"{from_node}-{to_node}"
+            reverse_key = f"{to_node}-{from_node}"
+            pattern = self.traffic_patterns.get(road_key) or self.traffic_patterns.get(reverse_key)
+            if pattern:
+                traffic_volume = pattern.get_current_traffic(time_hour)
+                congestion_factor = traffic_volume / capacity
+                if congestion_factor > 0.8:
+                    base_weight *= 1.5
+                elif congestion_factor > 0.5:
+                    base_weight *= 1.2
+
         if priority >= 3:  # Critical emergency
-            # Minimal penalty for traffic
             return base_weight * 0.5
-        elif priority >= 2:  # Urgent
+        if priority >= 2:  # Urgent
             return base_weight * 0.75
-        else:
-            return base_weight
+        return base_weight
 
     def _get_neighbors(self, node: Any) -> List[Tuple[Any, Dict[str, Any]]]:
         """Normalize neighbors for both custom graph objects and dict adjacency lists."""
@@ -392,6 +414,7 @@ class AStarSearch:
                     {
                         'weight': distance,
                         'distance': distance,
+                        'capacity': int(getattr(item, 'capacity', 0) or 0),
                         'traffic_factor': float(getattr(item, 'traffic_factor', 1.0))
                     }
                 ))
@@ -405,6 +428,13 @@ class AStarSearch:
             medical in str(node).lower() 
             for medical in ['hospital', 'medical', 'clinic']
         )
+
+    def _is_edge_avoided(self, from_node: Any, to_node: Any, avoid_edges: Optional[Set[str]]) -> bool:
+        if not avoid_edges:
+            return False
+        key = f"{from_node}-{to_node}"
+        reverse_key = f"{to_node}-{from_node}"
+        return key in avoid_edges or reverse_key in avoid_edges
     
     def _calculate_path_congestion(self, path: List, traffic_data: Dict) -> float:
         """Calculate average congestion along a path"""

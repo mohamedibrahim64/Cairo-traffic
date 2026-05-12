@@ -104,6 +104,16 @@ class TestDataLoader(unittest.TestCase):
         self.assertGreater(len(self.data.roads), 0)
         self.assertIsNotNone(self.data.graph)
 
+    def test_pdf_dataset_counts(self):
+        """Validate dataset sizes against the provided PDFs"""
+        self.data.load_all_data()
+        self.assertGreaterEqual(len(self.data.roads), 28)
+        self.assertEqual(len(self.data.potential_roads), 15)
+        self.assertEqual(len(self.data.traffic_patterns), 28)
+        self.assertEqual(len(self.data.metro_lines), 3)
+        self.assertEqual(len(self.data.bus_routes), 10)
+        self.assertEqual(len(self.data.transport_demand), 17)
+
 
 class TestShortestPathAlgorithm(unittest.TestCase):
     """Test shortest path algorithms"""
@@ -112,6 +122,21 @@ class TestShortestPathAlgorithm(unittest.TestCase):
         self.data = CairoTransportData()
         self.data.load_all_data()
         self.sp = ShortestPath(self.data)
+
+    def _road_exists(self, a, b):
+        for road in self.data.roads:
+            if (road.from_id == a and road.to_id == b) or \
+               (road.from_id == b and road.to_id == a):
+                return True
+        return False
+
+    def _path_uses_roads(self, path):
+        if not path:
+            return True
+        for i in range(len(path) - 1):
+            if not self._road_exists(path[i], path[i + 1]):
+                return False
+        return True
 
     def test_dijkstra_exists(self):
         """Test that Dijkstra's algorithm runs"""
@@ -129,6 +154,18 @@ class TestShortestPathAlgorithm(unittest.TestCase):
             self.assertEqual(path[0], 1)
             self.assertEqual(path[-1], 3)
 
+    def test_dijkstra_uses_roads(self):
+        """Dijkstra path should follow defined roads"""
+        path, _ = self.sp.dijkstra(1, 3)
+        self.assertTrue(self._path_uses_roads(path))
+
+    def test_dijkstra_avoid_roads(self):
+        """Dijkstra should avoid blocked roads when provided"""
+        path, _ = self.sp.dijkstra(1, 3, avoid_roads=["1-3"])
+        self.assertTrue(path)
+        for i in range(len(path) - 1):
+            self.assertNotEqual(f"{path[i]}-{path[i+1]}", "1-3")
+
     def test_dijkstra_zero_distance_same_node(self):
         """Test Dijkstra with same start and end"""
         path, distance = self.sp.dijkstra(1, 1)
@@ -142,6 +179,17 @@ class TestShortestPathAlgorithm(unittest.TestCase):
         
         self.assertIsInstance(path, list)
         self.assertIsInstance(distance, (int, float))
+
+    def test_astar_uses_roads(self):
+        """A* path should follow defined roads"""
+        path, _ = self.sp.a_star_search(1, 3)
+        self.assertTrue(self._path_uses_roads(path))
+
+    def test_time_varying_shortest_path(self):
+        """Time-varying routing should return a recommended route"""
+        result = self.sp.time_varying_shortest_path(1, 3, 10)
+        self.assertIn('recommended_route', result)
+        self.assertTrue(self._path_uses_roads(result.get('recommended_route', [])))
 
 
 class TestMinimumSpanningTree(unittest.TestCase):
@@ -193,6 +241,22 @@ class TestAStarSearch(unittest.TestCase):
         
         self.astar = AStarSearch(self.data.graph, coords)
 
+    def _graph_has_edge(self, a, b):
+        if a not in self.data.graph:
+            return False
+        for road in self.data.graph[a]:
+            if road.to_id == b:
+                return True
+        return False
+
+    def _path_uses_graph_edges(self, path):
+        if not path:
+            return True
+        for i in range(len(path) - 1):
+            if not self._graph_has_edge(path[i], path[i + 1]):
+                return False
+        return True
+
     def test_astar_find_path(self):
         """Test A* path finding"""
         result = self.astar.find_path(1, 3)
@@ -202,6 +266,11 @@ class TestAStarSearch(unittest.TestCase):
         self.assertIn('distance', result)
         self.assertIn('success', result)
 
+    def test_astar_path_edges_valid(self):
+        """A* path should follow graph edges"""
+        result = self.astar.find_path(1, 3)
+        self.assertTrue(self._path_uses_graph_edges(result.get('path', [])))
+
 
 class TestGreedyAlgorithm(unittest.TestCase):
     """Test greedy algorithms"""
@@ -210,6 +279,21 @@ class TestGreedyAlgorithm(unittest.TestCase):
         self.data = CairoTransportData()
         self.data.load_all_data()
         self.greedy = GreedyTrafficOptimizer(self.data)
+
+    def _road_exists(self, a, b):
+        for road in self.data.roads:
+            if (road.from_id == a and road.to_id == b) or \
+               (road.from_id == b and road.to_id == a):
+                return True
+        return False
+
+    def _path_uses_roads(self, path):
+        if not path:
+            return True
+        for i in range(len(path) - 1):
+            if not self._road_exists(path[i], path[i + 1]):
+                return False
+        return True
 
     def test_traffic_signal_optimization(self):
         """Test traffic signal optimization"""
@@ -231,6 +315,11 @@ class TestGreedyAlgorithm(unittest.TestCase):
         )
         
         self.assertIsInstance(result, dict)
+
+    def test_greedy_route_uses_roads(self):
+        """Greedy route should follow defined roads (with fallback if needed)"""
+        result = self.greedy.greedy_route_recommendation(1, 3)
+        self.assertTrue(self._path_uses_roads(result.get('path', [])))
 
 
 class TestDynamicProgramming(unittest.TestCase):

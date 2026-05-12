@@ -1,0 +1,403 @@
+===== Project_Provided_Data.pdf =====
+CSE112-Project Provided Data
+Geographic Data
+# Neighborhoods and Districts ID, Name, Population, Type, X-coordinate, Y-c
+oordinate)
+1, Maadi, 250000, Residential, 31.25, 29.96
+2, Nasr City, 500000, Mixed, 31.34, 30.06
+3, Downtown Cairo, 100000, Business, 31.24, 30.04
+4, New Cairo, 300000, Residential, 31.47, 30.03
+5, Heliopolis, 200000, Mixed, 31.32, 30.09
+6, Zamalek, 50000, Residential, 31.22, 30.06
+7, 6th October City, 400000, Mixed, 30.98, 29.93
+8, Giza, 550000, Mixed, 31.21, 29.99
+9, Mohandessin, 180000, Business, 31.20, 30.05
+10, Dokki, 220000, Mixed, 31.21, 30.03
+11, Shubra, 450000, Residential, 31.24, 30.11
+12, Helwan, 350000, Industrial, 31.33, 29.85
+13, New Administrative Capital, 50000, Government, 31.80, 30.02
+14, Al Rehab, 120000, Residential, 31.49, 30.06
+15, Sheikh Zayed, 150000, Residential, 30.94, 30.01
+# Important Facilities ID, Name, Type, X-coordinate, Y-coordinate)
+F1, Cairo International Airport, Airport, 31.41, 30.11
+F2, Ramses Railway Station, Transit Hub, 31.25, 30.06
+F3, Cairo University, Education, 31.21, 30.03
+F4, Al-Azhar University, Education, 31.26, 30.05
+F5, Egyptian Museum, Tourism, 31.23, 30.05
+F6, Cairo International Stadium, Sports, 31.30, 30.07
+F7, Smart Village, Business, 30.97, 30.07
+F8, Cairo Festival City, Commercial, 31.40, 30.03
+CSE112Pr oject Pr o vided Dat a
+1
+F9, Qasr El Aini Hospital, Medical, 31.23, 30.03
+F10, Maadi Military Hospital, Medical, 31.25, 29.95
+Road Network Data
+# Existing Roads FromID, ToID, Distance(km), Current Capacity(vehicles/hou
+r), Condition(110))
+1, 3, 8.5, 3000, 7
+1, 8, 6.2, 2500, 6
+2, 3, 5.9, 2800, 8
+2, 5, 4.0, 3200, 9
+3, 5, 6.1, 3500, 7
+3, 6, 3.2, 2000, 8
+3, 9, 4.5, 2600, 6
+3, 10, 3.8, 2400, 7
+4, 2, 15.2, 3800, 9
+4, 14, 5.3, 3000, 10
+5, 11, 7.9, 3100, 7
+6, 9, 2.2, 1800, 8
+7, 8, 24.5, 3500, 8
+7, 15, 9.8, 3000, 9
+8, 10, 3.3, 2200, 7
+8, 12, 14.8, 2600, 5
+9, 10, 2.1, 1900, 7
+10, 11, 8.7, 2400, 6
+11, F2, 3.6, 2200, 7
+12, 1, 12.7, 2800, 6
+13, 4, 45.0, 4000, 10
+14, 13, 35.5, 3800, 9
+15, 7, 9.8, 3000, 9
+F1, 5, 7.5, 3500, 9
+F1, 2, 9.2, 3200, 8
+F2, 3, 2.5, 2000, 7
+F7, 15, 8.3, 2800, 8
+F8, 4, 6.1, 3000, 9
+CSE112Pr oject Pr o vided Dat a
+2
+# Potential New Roads FromID, ToID, Distance(km), Estimated Capacity(vehic
+les/hour), Construction Cost(Million EGP
+1, 4, 22.8, 4000, 450
+1, 14, 25.3, 3800, 500
+2, 13, 48.2, 4500, 950
+3, 13, 56.7, 4500, 1100
+5, 4, 16.8, 3500, 320
+6, 8, 7.5, 2500, 150
+7, 13, 82.3, 4000, 1600
+9, 11, 6.9, 2800, 140
+10, F7, 27.4, 3200, 550
+11, 13, 62.1, 4200, 1250
+12, 14, 30.5, 3600, 610
+14, 5, 18.2, 3300, 360
+15, 9, 22.7, 3000, 450
+F1, 13, 40.2, 4000, 800
+F7, 9, 26.8, 3200, 540
+Traffic Flow Data
+# Traffic Flow Patterns RoadID, Morning Peak(veh/h), Afternoon(veh/h), Eveni
+ng Peak(veh/h), Night(veh/h))
+13, 2800, 1500, 2600, 800
+18, 2200, 1200, 2100, 600
+23, 2700, 1400, 2500, 700
+25, 3000, 1600, 2800, 650
+35, 3200, 1700, 3100, 800
+36, 1800, 1400, 1900, 500
+39, 2400, 1300, 2200, 550
+310, 2300, 1200, 2100, 500
+42, 3600, 1800, 3300, 750
+414, 2800, 1600, 2600, 600
+511, 2900, 1500, 2700, 650
+69, 1700, 1300, 1800, 450
+CSE112Pr oject Pr o vided Dat a
+3
+78, 3200, 1700, 3000, 700
+715, 2800, 1500, 2600, 600
+810, 2000, 1100, 1900, 450
+812, 2400, 1300, 2200, 500
+910, 1800, 1200, 1700, 400
+1011, 2200, 1300, 2100, 500
+11F2, 2100, 1200, 2000, 450
+121, 2600, 1400, 2400, 550
+134, 3800, 2000, 3500, 800
+1413, 3600, 1900, 3300, 750
+157, 2800, 1500, 2600, 600
+F15, 3300, 2200, 3100, 1200
+F12, 3000, 2000, 2800, 1100
+F23, 1900, 1600, 1800, 900
+F715, 2600, 1500, 2400, 550
+F84, 2800, 1600, 2600, 600
+Public Transportation Data
+# Current Metro Lines LineID, Name, Stations(comma-separated IDs), Daily P
+assengers)
+M1, Line 1 Helwan-New Marg), "12,1,3,F2,11", 1500000
+M2, Line 2 Shubra-Giza), "11,F2,3,10,8", 1200000
+M3, Line 3 Airport-Imbaba), "F1,5,2,3,9", 800000
+# Current Bus Routes RouteID, Stops(comma-separated IDs), Buses Assigne
+d, Daily Passengers)
+B1, "1,3,6,9", 25, 35000
+B2, "7,15,8,10,3", 30, 42000
+B3, "2,5,F1", 20, 28000
+B4, "4,14,2,3", 22, 31000
+B5, "8,12,1", 18, 25000
+B6, "11,5,2", 24, 33000
+B7, "13,4,14", 15, 21000
+B8, "F7,15,7", 12, 17000
+CSE112Pr oject Pr o vided Dat a
+4
+B9, "1,8,10,9,6", 28, 39000
+B10, "F8,4,2,5", 20, 28000
+# Public Transportation Demand FromID, ToID, Daily Passengers)
+3, 5, 15000
+1, 3, 12000
+2, 3, 18000
+F2, 11, 25000
+F1, 3, 20000
+7, 3, 14000
+4, 3, 16000
+8, 3, 22000
+3, 9, 13000
+5, 2, 17000
+11, 3, 24000
+12, 3, 11000
+1, 8, 9000
+7, F7, 18000
+4, F8, 12000
+13, 3, 8000
+14, 4, 7000
+CSE112Pr oject Pr o vided Dat a
+5
+
+===== CSE112-Theoretical Project.pdf =====
+ 
+ 
+Alamein International University 
+Faculty of Computer Science & 
+Engineering 
+ 
+  
+Design and Analysis of Algorithms 
+Course Code: CSE112 
+ 
+ 1 
+Theoretical Algorithms Analysis Project 
+ 
+Project Overview 
+In addition to the practical implementation, you will select one algorithm that you used in your 
+transportation optimization system and conduct an in-depth theoretical analysis. This 
+component will test your understanding of algorithmic concepts, mathematical foundations, 
+and analytical skills. 
+Requirements 
+1. Algorithm Selection 
+Choose one of the following algorithms that you implemented in your practical project: 
+• Minimum Spanning Tree algorithms (Kruskal's or Prim's) 
+• Shortest Path algorithms (Dijkstra's or A*) 
+• Dynamic Programming solutions for scheduling or resource allocation 
+• Greedy algorithms for optimization problems 
+2. In-Depth Analysis 
+Prepare a detailed analysis of your chosen algorithm covering: 
+• Mathematical foundations and formal proof of correctness 
+• Detailed complexity analysis (time and space) 
+• Comparison with alternative approaches 
+• Specific modifications you made for the transportation problem 
+• Performance characteristics and optimization opportunities 
+3. Presentation 
+Create a presentation (10-15 minutes) that includes: 
+• Introduction to the algorithm and its general applications 
+• Mathematical foundations and pseudocode 
+• Complexity analysis with rigorous proof 
+• Your specific implementation and modifications 
+• Performance analysis results 
+• Comparison with alternatives 
+• Conclusion and lessons learned 
+ 
+
+===== CSE112-Practical Project.pdf =====
+ 
+ 
+Alamein International University 
+Faculty of Computer Science & 
+Engineering 
+ 
+  
+Design and Analysis of Algorithms 
+Course Code: CSE112 
+ 
+ 1 
+Smart City Transportation Network Optimization Project 
+ 
+ 
+Smart City Transportation Network Optimization Project 
+Project Overview 
+In this comprehensive project, you will develop a transportation optimization system for a 
+growing Egyptian metropolitan area. Your system will implement and integrate multiple 
+algorithmic concepts covered in CSE112 to analyze, optimize, and manage various aspects of 
+urban transportation using graph algorithms, dynamic programming, greedy approaches, and 
+algorithm analysis techniques. 
+Learning Objectives 
+• Apply theoretical algorithmic concepts to a practical, real-world problem 
+• Implement and integrate multiple algorithm types into a cohesive system 
+• Analyze algorithm performance and make appropriate design choices 
+• Develop proficiency in algorithm implementation and optimization 
+ 
+Problem Statement 
+You are tasked with creating a transportation management system for the Greater Cairo 
+metropolitan area, which faces significant challenges with traffic congestion, infrastructure 
+development, and public transportation. The city administration has provided you with data 
+about the transportation network, and you must develop algorithmic solutions to optimize 
+various aspects of this system. 
+ 
+Project Requirements 
+As a student, you are required to complete the following: 
+1. System Implementation 
+• Develop a complete transportation management system using the provided data for 
+Greater Cairo 
+• Implement all required algorithms as specified in the technical requirements section 
+• Create a user interface or visualization component to demonstrate your system 
+• Document your code thoroughly with appropriate comments 
+2. Technical Report 
+• Write a comprehensive technical report (5-7 pages) that includes:  
+o Description of your system architecture and design decisions 
+o Detailed explanation of algorithm implementations and modifications 
+o Complexity analysis for all major components 
+o Performance evaluation results with graphs/charts 
+o Challenges encountered and how you addressed them 
+o Potential improvements and future work 
+ 
+ 
+Alamein International University 
+Faculty of Computer Science & 
+Engineering 
+ 
+  
+Design and Analysis of Algorithms 
+Course Code: CSE112 
+ 
+ 2 
+3. Demo 
+• Create a working demonstration of your system that:  
+o Shows the functionality of your implementation 
+o Illustrates how your algorithms solve transportation problems 
+o Demonstrates performance under different scenarios 
+o Highlights key features and optimizations 
+4. Code Repository 
+• Submit a well-organized code repository with:  
+o Source code for all system components 
+o Test cases and documentation 
+o README file with setup and usage instructions 
+o Any additional resources created (visualizations, data structures) 
+ 
+Technical Requirements 
+1. Data Structures and Representation 
+• Implement a weighted graph representation of Cairo's transportation network 
+• Design appropriate data structures for storing and querying temporal traffic data 
+• Develop a simulation framework for testing your algorithms under different scenarios 
+2. Required Algorithmic Implementations 
+A. Minimum Spanning Tree Algorithm 
+• Implement Kruskal's or Prim's algorithm to design a cost-efficient road network, 
+prioritizing connections between high-population areas 
+• Add constraints to ensure critical facilities (hospitals, government centers) have 
+adequate connectivity 
+• Analyze the time and space complexity of your implementation 
+B. Shortest Path Algorithms 
+• Implement Dijkstra's algorithm for standard route planning between Cairo's 
+neighborhoods 
+• Implement A* search algorithm for emergency vehicle routing to medical facilities 
+• Develop a modified shortest path algorithm that accounts for Cairo's time-varying traffic 
+conditions (morning/evening rush hours) 
+C. Dynamic Programming Solutions 
+• Implement a DP solution for optimal scheduling of public transportation vehicles across 
+metro and bus lines 
+• Use dynamic programming to solve the resource allocation problem for road 
+maintenance in areas with poor road conditions 
+• Apply memoization techniques to improve performance of your route planning 
+algorithms 
+D. Greedy Algorithm Application 
+ 
+ 
+Alamein International University 
+Faculty of Computer Science & 
+Engineering 
+ 
+  
+Design and Analysis of Algorithms 
+Course Code: CSE112 
+ 
+ 3 
+• Develop a greedy approach for real-time traffic signal optimization at major Cairo 
+intersections 
+• Implement a priority-based system for managing emergency vehicle preemption during 
+high congestion periods 
+• Analyze cases where your greedy approach provides optimal and suboptimal solutions in 
+the Egyptian context 
+Required Project Components 
+1. Infrastructure Network Design 
+Develop an algorithm to design an optimal road network that connects all areas of Cairo while 
+minimizing construction and maintenance costs. 
+Requirements: 
+• Use Minimum Spanning Tree algorithms (Kruskal's or Prim's) with appropriate 
+modifications 
+• Consider both existing roads and potential new road constructions 
+• Prioritize connections between high-population areas and critical facilities 
+• Ensure all neighborhoods have adequate connectivity 
+• Analyze the cost-effectiveness of your proposed network 
+Deliverables: 
+• Implementation of MST algorithm with appropriate modifications 
+• Visualization of the optimized road network 
+• Cost analysis of your proposed solution 
+• Explanation of your approach and algorithm modifications 
+2. Traffic Flow Optimization 
+Create algorithms to analyze and optimize traffic flow, including routing recommendations 
+during congestion and special events. 
+Requirements: 
+• Implement Dijkstra's algorithm for finding optimal routes between locations 
+• Develop algorithms that account for time-dependent traffic patterns 
+• Create strategies for reducing congestion during peak hours 
+• Design a system for recommending alternate routes during road closures or accidents 
+Deliverables: 
+• Implementation of shortest path algorithms with time-dependent modifications 
+• Traffic flow simulation demonstrating your optimization techniques 
+• Analysis of congestion reduction achieved by your algorithms 
+• Documentation of algorithm design and implementation 
+3. Emergency Response Planning 
+Design a subsystem for routing emergency vehicles that minimizes response time while 
+accounting for current traffic conditions. 
+Requirements: 
+ 
+ 
+Alamein International University 
+Faculty of Computer Science & 
+Engineering 
+ 
+  
+Design and Analysis of Algorithms 
+Course Code: CSE112 
+ 
+ 4 
+• Implement A* search algorithm for emergency vehicle routing 
+• Create a priority system for emergency vehicles at intersections 
+• Develop algorithms that account for real-time traffic conditions 
+• Ensure critical facilities (hospitals, fire stations) have optimized access 
+Deliverables: 
+• Implementation of specialized routing algorithms for emergency vehicles 
+• Simulation demonstrating emergency response scenarios 
+• Analysis of response time improvements 
+• Documentation of your approach and implementation 
+4. Public Transit Optimization 
+Develop algorithms to optimize public transportation routes and schedules to maximize 
+coverage and minimize travel times. 
+Requirements: 
+• Use dynamic programming to optimize bus and metro schedules 
+• Create algorithms for allocating transportation resources efficiently 
+• Design an integrated public transportation network 
+• Analyze and optimize transfer points between different transportation modes 
+Deliverables: 
+• Implementation of dynamic programming solutions for scheduling 
+• Visualization of optimized public transportation routes 
+• Analysis of improvements in coverage and travel times 
+• Documentation of your approach and implementation 
+Project Deliverables 
+Students must submit all of the following: 
+1. Source Code:  
+o Complete implementation of the transportation system 
+o Test cases demonstrating functionality 
+o README file with instructions for running your code 
+o Any required libraries or dependencies clearly documented 
+2. Technical Report (PDF format):  
+o System architecture and design 
+o Algorithm implementations and analyses 
+o Performance evaluation and results 
+o Challenges and solutions 
+o References and appendices 
+3. Working Demo:  
+o Executable program that demonstrates all system functionalities 
+o Sample scenarios showing different optimization problems 
+o Clear visual representation of solutions and results 
+
