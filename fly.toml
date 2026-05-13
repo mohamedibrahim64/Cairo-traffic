@@ -1,0 +1,38 @@
+# Fly.io configuration for Cairo Transportation System
+
+app = "cairo-transport"
+primary_region = "iad"
+
+[build]
+builder = "heroku"
+
+[env]
+PYTHONUNBUFFERED = "true"
+FLASK_ENV = "production"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = true
+auto_start_machines = true
+min_machines_running = 1
+
+[[services]]
+protocol = "tcp"
+internal_port = 8080
+
+[checks]
+enabled = true
+
+[checks.status]
+type = "http"
+interval = "30s"
+timeout = "10s"
+grace_period = "5s"
+method = "get"
+path = "/"
+
+[[vm]]
+cpu_kind = "shared"
+cpus = 1
+memory_mb = 512
