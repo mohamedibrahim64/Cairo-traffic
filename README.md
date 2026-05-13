@@ -120,6 +120,16 @@ docker-compose up -d
 # Access application at http://localhost:5000
 ```
 
+## GitHub Pages Deployment
+
+This repository includes a GitHub Actions workflow at
+`.github/workflows/deploy-pages.yml` that deploys the static site in `docs/`
+to GitHub Pages on every push to the `main` branch.
+
+The deployed page is a project landing page/documentation entry point.
+The full interactive dashboard still requires running the Flask backend locally
+or in a server environment.
+
 ## Usage
 
 ### Running the Web Application
