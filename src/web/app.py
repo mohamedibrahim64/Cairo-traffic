@@ -249,6 +249,119 @@ def shortest_path():
             'error': str(e)
         })
 
+@app.route('/api/compare-routes', methods=['POST'])
+def compare_routes():
+    """Calculate and compare routes for all three algorithms"""
+    req_data = request.json
+    start = req_data['start']
+    end = req_data['end']
+    time_hour = req_data.get('time_hour', 10)
+    
+    try:
+        start_str = str(start)
+        end_str = str(end)
+        start_id = int(start_str) if start_str.isdigit() else start
+        end_id = int(end_str) if end_str.isdigit() else end
+
+        algorithms_data = []
+        distances = {}
+
+        for algo_name in ['dijkstra', 'astar', 'greedy']:
+            try:
+                if algo_name == 'dijkstra':
+                    path, distance = sp.dijkstra(start_id, end_id, time_hour)
+                elif algo_name == 'astar':
+                    path, distance = sp.a_star_search(start_id, end_id, time_hour)
+                else:
+                    result = greedy.greedy_route_recommendation(start_id, end_id, hour=time_hour)
+                    path = result['path']
+                    distance = result['total_distance']
+
+                path_names = []
+                for node in path:
+                    coords = get_node_coordinate(node)
+                    path_names.append({
+                        'id': node,
+                        'name': get_node_name(node),
+                        'x': coords[0] if coords else None,
+                        'y': coords[1] if coords else None
+                    })
+
+                segments = []
+                for i in range(len(path) - 1):
+                    a = path[i]
+                    b = path[i + 1]
+                    matched = None
+                    for road in data.roads:
+                        if (road.from_id == a and road.to_id == b) or (road.from_id == b and road.to_id == a):
+                            matched = road
+                            break
+
+                    from_coords = get_node_coordinate(a) or (None, None)
+                    to_coords = get_node_coordinate(b) or (None, None)
+                    segments.append({
+                        'from': a,
+                        'to': b,
+                        'distance': matched.distance if matched else None,
+                        'coords': [
+                            {'x': from_coords[0], 'y': from_coords[1]},
+                            {'x': to_coords[0], 'y': to_coords[1]}
+                        ]
+                    })
+
+                osrm_geom = _get_osrm_geometry_for_path(path)
+
+                algorithms_data.append({
+                    'algorithm': algo_name,
+                    'path': path_names,
+                    'segments': segments,
+                    'distance': distance,
+                    'osrm_geometry': osrm_geom
+                })
+                distances[algo_name] = distance
+            except Exception as algo_error:
+                algorithms_data.append({
+                    'algorithm': algo_name,
+                    'error': str(algo_error)
+                })
+
+        valid_distances = {name: dist for name, dist in distances.items() if dist is not None and dist != float('inf')}
+        best_algo = min(valid_distances, key=valid_distances.get) if valid_distances else None
+        best_distance = valid_distances[best_algo] if best_algo else float('inf')
+        optimal_algos = [name for name, dist in valid_distances.items() if dist == best_distance]
+
+        if len(optimal_algos) > 1:
+            analysis = {
+                'summary': 'Dijkstra and A* found the same shortest path here.',
+                'why_dijkstra': 'Dijkstra guarantees the optimal route by expanding nodes in increasing cost order.',
+                'why_astar': 'A* is also optimal here because the heuristic is admissible, but it is usually faster because it guides search toward the destination.',
+                'why_greedy': 'Greedy is faster to decide locally, but it does not guarantee the shortest full route.',
+                'recommended': 'Use Dijkstra when you want a guaranteed shortest path and A* when you want the same optimal path with less search in larger graphs.'
+            }
+        else:
+            analysis = {
+                'summary': f'{best_algo.upper()} returned the shortest route.' if best_algo else 'No valid route found.',
+                'why_dijkstra': 'Dijkstra is the safest baseline for shortest-path correctness.',
+                'why_astar': 'A* can be better in search efficiency, but it still matches Dijkstra on optimality when the heuristic is admissible.',
+                'why_greedy': 'Greedy is not guaranteed to be globally optimal.',
+                'recommended': 'Dijkstra and A* are both correct shortest-path methods; A* is often faster, but Dijkstra is easier to justify academically.'
+            }
+
+        return jsonify({
+            'success': True,
+            'routes': algorithms_data,
+            'best_algorithm': best_algo,
+            'best_algorithms': optimal_algos,
+            'best_distance': best_distance,
+            'analysis': analysis,
+            'optimal_algorithms': optimal_algos
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/api/mst', methods=['POST'])
 def compute_mst():
     """Compute Minimum Spanning Tree"""

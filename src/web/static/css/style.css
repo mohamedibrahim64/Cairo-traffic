@@ -1,5 +1,45 @@
 /* ===== Cairo Smart Transportation System Styles ===== */
 
+/* ===== Algorithm Analysis Styles ===== */
+.algorithm-analysis {
+    border-top: 2px solid #ecf0f1;
+    padding-top: 15px;
+}
+
+.algorithm-analysis h6 {
+    color: #2c3e50;
+    font-weight: 700;
+    margin-bottom: 15px;
+}
+
+.algorithm-analysis .alert {
+    border-left: 4px solid;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.algorithm-analysis .alert-info {
+    border-left-color: #3498db;
+    background-color: #e8f4f8;
+}
+
+.algorithm-analysis .alert-success {
+    border-left-color: #2ecc71;
+    background-color: #e8f8f0;
+}
+
+.algorithm-analysis ul {
+    margin: 10px 0;
+}
+
+.algorithm-analysis ul li {
+    margin: 8px 0;
+    color: #34495e;
+}
+
+.algorithm-analysis strong {
+    color: #2c3e50;
+}
 :root {
     --primary: #1e3c72;
     --secondary: #2a5298;
@@ -383,4 +423,46 @@ canvas {
 .tooltip-custom:hover .tooltip-text {
     visibility: visible;
     opacity: 1;
+}
+
+/* ===== Route Comparison Styles ===== */
+.route-comparison {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.route-comparison h6 {
+    margin-bottom: 15px;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+.route-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.route-item {
+    background: white;
+    padding: 12px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.route-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.route-item strong {
+    color: #2c3e50;
+}
+
+.route-item .badge {
+    font-size: 0.75rem;
+    padding: 4px 8px;
 }

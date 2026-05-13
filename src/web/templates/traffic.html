@@ -34,8 +34,9 @@
                             </button>
                         </div>
                     </div>
+<<<<<<< HEAD
 
-                    <!-- Algorithm Selection -->
+                    <!-- Algorithm / Time / Avoid selection -->
                     <div class="row mb-3">
                         <div class="col-md-3">
                             <label class="form-label">Algorithm</label>
@@ -60,6 +61,7 @@
                             <input type="text" id="avoid-roads" class="form-control"
                                 placeholder="Enter road IDs separated by commas">
                         </div>
+                    </div>
                     </div>
 
                     <!-- Route Map -->
@@ -133,10 +135,245 @@
         // Initialize map
         routeMap = L.map('route-map').setView([30.0444, 31.2357], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(routeMap);
+async function loadLocationDropdowns() {
+    try {
+        const response = await fetch('/api/network-data');
+        const data = await response.json();
+        
+        const startSelect = document.getElementById('start-node');
+        const endSelect = document.getElementById('end-node');
+        
+        // Add neighborhoods
+        data.neighborhoods.forEach(n => {
+            startSelect.innerHTML += `<option value="${n.id}">${n.name}</option>`;
+            endSelect.innerHTML += `<option value="${n.id}">${n.name}</option>`;
+        });
+        
+        // Add facilities
+        data.facilities.forEach(f => {
+            startSelect.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+            endSelect.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+        });
+    } catch (error) {
+        console.error('Error loading locations:', error);
+    }
+}
 
-        loadLocationDropdowns();
-        loadIntersections();
-        initializeEventListeners();
+function initializeEventListeners() {
+    document.getElementById('find-route-btn').addEventListener('click', findRoute);
+    document.getElementById('optimize-signals-btn').addEventListener('click', optimizeSignals);
+}
+
+async function findRoute() {
+    const start = document.getElementById('start-node').value;
+    const end = document.getElementById('end-node').value;
+    const timeHour = parseInt(document.getElementById('time-select').value);
+    
+    if (!start || !end) {
+        alert('Please select start and end locations');
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('find-route-btn').disabled = true;
+    document.getElementById('find-route-btn').innerHTML = 
+        '<span class="spinner-border spinner-border-sm"></span> Calculating...';
+    
+    try {
+        const response = await fetch('/api/compare-routes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ start, end, time_hour: timeHour })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayAllRoutes(result);
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Error finding route:', error);
+        alert('Error calculating route');
+    } finally {
+        document.getElementById('find-route-btn').disabled = false;
+        document.getElementById('find-route-btn').innerHTML = 
+            '<i class="fas fa-search"></i> Find Route';
+    }
+}
+
+function displayAllRoutes(result) {
+    // Clear previous routes
+    routeMap.eachLayer(layer => {
+        if (layer instanceof L.Polyline && ['#3498db', '#2ecc71', '#e74c3c', '#f39c12'].includes(layer.options.color)) {
+            routeMap.removeLayer(layer);
+        }
+    });
+    
+    // Color mapping: Dijkstra (blue), A* (green), Greedy (orange), Best (red)
+    const colorMap = {
+        'dijkstra': '#3498db',    // Blue
+        'astar': '#2ecc71',       // Green
+        'greedy': '#f39c12'       // Orange
+    };
+    const bestAlgorithms = result.best_algorithms || (result.best_algorithm ? [result.best_algorithm] : []);
+    
+    const allCoords = [];
+    const routeInfo = {};
+    
+    // Draw all routes
+    result.routes.forEach(route => {
+        if (route.error) return;
+        
+        const isBest = bestAlgorithms.includes(route.algorithm);
+        const color = isBest ? '#e74c3c' : colorMap[route.algorithm];
+        const weight = isBest ? 5 : 3;
+        const opacity = isBest ? 1.0 : 0.7;
+        
+        const coords = [];
+        if (route.osrm_geometry && route.osrm_geometry.length > 0) {
+            const osrmCoords = route.osrm_geometry.map(c => [c.y, c.x]);
+            L.polyline(osrmCoords, { 
+                color: color, 
+                weight: weight, 
+                opacity: opacity,
+                className: `route-${route.algorithm}`
+            }).addTo(routeMap);
+            coords.push(...osrmCoords);
+        } else if (route.segments && route.segments.length > 0) {
+            route.segments.forEach(seg => {
+                const segCoords = seg.coords.map(c => [c.y, c.x]);
+                L.polyline(segCoords, { 
+                    color: color, 
+                    weight: weight, 
+                    opacity: opacity,
+                    className: `route-${route.algorithm}`
+                }).addTo(routeMap);
+                coords.push(...segCoords);
+            });
+        } else {
+            const nodeCoords = route.path.map(node => [node.y, node.x]);
+            L.polyline(nodeCoords, { 
+                color: color, 
+                weight: weight, 
+                opacity: opacity,
+                className: `route-${route.algorithm}`
+            }).addTo(routeMap);
+            coords.push(...nodeCoords);
+        }
+        
+        allCoords.push(...coords);
+        
+        routeInfo[route.algorithm] = {
+            distance: route.distance,
+            path: route.path,
+            color: color,
+            isBest: isBest
+        };
+    });
+    
+    // Fit map to all routes
+    if (allCoords.length > 0) routeMap.fitBounds(allCoords, { padding: [50, 50] });
+    
+    // Display route comparison info
+    displayRouteComparison(routeInfo, result.best_algorithm);
+    // Display algorithm analysis
+    displayAlgorithmAnalysis(result);
+}
+
+function displayAlgorithmAnalysis(result) {
+    const analysis = result.analysis || {};
+    const optimalCount = result.optimal_algorithms ? result.optimal_algorithms.length : 0;
+
+    let analysisHtml = '<div class="algorithm-analysis mt-4"><h6 class="mb-3"><i class="fas fa-brain"></i> Algorithm Analysis:</h6>';
+
+    if (optimalCount > 1) {
+        // Multiple algorithms tied for optimal
+        analysisHtml += `
+            <div class="alert alert-info">
+                <strong>🎯 Tie Found:</strong> ${result.optimal_algorithms.join(' and ').toUpperCase()} both found optimal paths!
+                <br/><br/>
+                <strong>Why?</strong> ${analysis.dijkstra_vs_astar || 'Both algorithms converged to the same optimal solution.'}
+                <br/><br/>
+                <strong>💡 Recommendation:</strong> ${analysis.recommended || 'Use based on your needs.'}
+            </div>
+        `;
+    } else {
+        // Single best algorithm
+        analysisHtml += `
+            <div class="alert alert-success">
+                <strong>🏆 ${result.best_algorithm.toUpperCase()} is Optimal!</strong>
+                <br/><br/>
+                <strong>Why ${result.best_algorithm.toUpperCase()} wins:</strong>
+                <ul class="mb-0">
+                    <li><strong>Dijkstra:</strong> Explores all possibilities systematically. Guaranteed to find shortest path. Uses uniform cost search.</li>
+                    <li><strong>A*:</strong> Uses heuristic (Euclidean distance) to guide search. Faster than Dijkstra but equally optimal here.</li>
+                    <li><strong>Greedy:</strong> Makes locally optimal choices. Fast but doesn't guarantee globally optimal path.</li>
+                </ul>
+            </div>
+        `;
+    }
+
+    analysisHtml += '</div>';
+
+    let analysisDiv = document.getElementById('analysis-info');
+    if (!analysisDiv) {
+        analysisDiv = document.createElement('div');
+        analysisDiv.id = 'analysis-info';
+        document.querySelector('.card-body').appendChild(analysisDiv);
+    }
+    analysisDiv.innerHTML = analysisHtml;
+}
+
+function displayRouteComparison(routeInfo, bestAlgo) {
+    const infoHtml = `
+        <div class="route-comparison">
+            <h6>Route Comparison:</h6>
+            <div class="route-legend">
+    `;
+    
+    const algorithms = ['dijkstra', 'astar', 'greedy'];
+    let comparisonHtml = '';
+    
+    for (const algo of algorithms) {
+        if (routeInfo[algo]) {
+            const info = routeInfo[algo];
+            const isBest = info.isBest;
+            const badge = isBest ? '<span class="badge bg-danger ms-2">Best</span>' : '';
+            const distance = info.distance && isFinite(info.distance) ? info.distance.toFixed(2) : 'N/A';
+            const time = info.distance && isFinite(info.distance) ? ((info.distance / 40) * 60).toFixed(1) : 'N/A';
+            
+            comparisonHtml += `
+                <div class="route-item" style="border-left: 4px solid ${info.color}">
+                    <strong>${algo.toUpperCase()}</strong> ${badge}
+                    <br/>
+                    Distance: <strong>${distance} km</strong> | Time: <strong>${time} min</strong>
+                    <br/>
+                    <small class="text-muted">${info.path.map(n => n.name).join(' → ')}</small>
+                </div>
+            `;
+        }
+    }
+    
+    const finalHtml = infoHtml + comparisonHtml + '</div></div>';
+    
+    let infoDiv = document.getElementById('route-info');
+    if (!infoDiv) {
+        infoDiv = document.createElement('div');
+        infoDiv.id = 'route-info';
+        document.querySelector('.card-body').appendChild(infoDiv);
+    }
+    infoDiv.innerHTML = finalHtml;
+    infoDiv.style.display = 'block';
+}
+
+function displayRoute(result) {
+    // Clear previous route
+    routeMap.eachLayer(layer => {
+        if (layer instanceof L.Polyline && layer.options.color === '#e74c3c') {
+            routeMap.removeLayer(layer);
+        }
     });
 
     async function loadLocationDropdowns() {
@@ -162,6 +399,13 @@
             console.error('Error loading locations:', error);
         }
     }
+
+    // Initialize after function definitions
+    document.addEventListener('DOMContentLoaded', function () {
+        loadLocationDropdowns();
+        if (typeof loadIntersections === 'function') loadIntersections();
+        if (typeof initializeEventListeners === 'function') initializeEventListeners();
+    });
 
     function initializeEventListeners() {
         document.getElementById('find-route-btn').addEventListener('click', findRoute);
