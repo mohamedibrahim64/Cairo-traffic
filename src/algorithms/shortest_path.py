@@ -10,17 +10,14 @@ class ShortestPath:
         self.data = data
         self.memo_cache = {}
         
-    def dijkstra(self, start: Any, end: Any, time_hour: int = 10,
-                 avoid_roads: Optional[List[str]] = None) -> Tuple[List, float]:
+    def dijkstra(self, start: Any, end: Any, time_hour: int = 10) -> Tuple[List, float]:
         """
         Dijkstra's algorithm for shortest path
         Time Complexity: O((V + E) log V)
         Space Complexity: O(V)
         """
         # Check memo cache
-        avoid_set = self._normalize_avoid_roads(avoid_roads)
-        avoid_key = "|".join(sorted(avoid_set)) if avoid_set else "none"
-        cache_key = f"dijkstra_{start}_{end}_{time_hour}_{avoid_key}"
+        cache_key = f"dijkstra_{start}_{end}_{time_hour}"
         if cache_key in self.memo_cache:
             return self.memo_cache[cache_key]
         
@@ -47,9 +44,6 @@ class ShortestPath:
             for road in self.data.graph[current]:
                 neighbor = road.to_id
                 if neighbor in visited:
-                    continue
-
-                if self._is_road_avoided(current, neighbor, avoid_set):
                     continue
                 
                 # Calculate edge weight considering traffic
@@ -89,8 +83,7 @@ class ShortestPath:
                 
         return base_weight
     
-    def a_star_search(self, start, end, time_hour: int = 10,
-                      avoid_roads: Optional[List[str]] = None) -> Tuple[List, float]:
+    def a_star_search(self, start, end, time_hour: int = 10) -> Tuple[List, float]:
         """
         A* search algorithm for emergency vehicle routing
         Time Complexity: O((V + E) log V)
@@ -122,7 +115,6 @@ class ShortestPath:
         f_score[start] = heuristic(start)
         came_from = {}
         closed_set = set()
-        avoid_set = self._normalize_avoid_roads(avoid_roads)
         
         while open_set:
             _, _, current = heapq.heappop(open_set)
@@ -136,9 +128,6 @@ class ShortestPath:
             for road in self.data.graph[current]:
                 neighbor = road.to_id
                 if neighbor in closed_set:
-                    continue
-
-                if self._is_road_avoided(current, neighbor, avoid_set):
                     continue
                 
                 # For emergency vehicles, prioritize shortest time using same
@@ -161,13 +150,12 @@ class ShortestPath:
         
         return [], float('inf')
     
-    def time_varying_shortest_path(self, start, end, departure_time: int,
-                                   avoid_roads: Optional[List[str]] = None) -> Dict:
+    def time_varying_shortest_path(self, start, end, departure_time: int) -> Dict:
         """
         Modified shortest path accounting for time-varying conditions
         """
-        path_off_peak, dist_off = self.dijkstra(start, end, 10, avoid_roads)
-        path_peak, dist_peak = self.dijkstra(start, end, 8, avoid_roads)
+        path_off_peak, dist_off = self.dijkstra(start, end, 10)
+        path_peak, dist_peak = self.dijkstra(start, end, 8)
         
         # Calculate expected arrival times
         off_peak_congestion = self._calculate_path_congestion(path_off_peak, 10)
@@ -225,24 +213,3 @@ class ShortestPath:
                         total_congestion += traffic / road.capacity
                         break
         return total_congestion / len(path) if len(path) > 1 else 0
-
-    def _normalize_avoid_roads(self, avoid_roads: Optional[List[str]]) -> set:
-        """Normalize avoid road list into a set of canonical road keys."""
-        if not avoid_roads:
-            return set()
-        normalized = set()
-        for item in avoid_roads:
-            if not item:
-                continue
-            if isinstance(item, str):
-                key = item.strip()
-                if '-' in key:
-                    normalized.add(key)
-        return normalized
-
-    def _is_road_avoided(self, from_id: Any, to_id: Any, avoid_set: set) -> bool:
-        if not avoid_set:
-            return False
-        key = f"{from_id}-{to_id}"
-        reverse_key = f"{to_id}-{from_id}"
-        return key in avoid_set or reverse_key in avoid_set

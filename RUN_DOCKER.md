@@ -1,6 +1,6 @@
 # Run With Docker
 
-This project runs a Streamlit web app on port 8501.
+This project runs a Flask web app on port 5000.
 
 ## Option A: Docker Compose (recommended)
 
@@ -15,7 +15,7 @@ This project runs a Streamlit web app on port 8501.
    ```
 
 3. Open the app in your browser:
-   - http://localhost:8501
+   - http://localhost:5000
 
 4. View logs (optional):
    ```bash
@@ -36,7 +36,7 @@ This project runs a Streamlit web app on port 8501.
 
 2. Run the container:
    ```bash
-   docker run --rm -p 8501:8501 \
+   docker run --rm -p 5000:5000 \
      -e PYTHONPATH=/app/src \
      -v %cd%\data:/app/data \
      -v %cd%\models:/app/models \
@@ -44,7 +44,7 @@ This project runs a Streamlit web app on port 8501.
    ```
 
 3. Open the app in your browser:
-   - http://localhost:8501
+   - http://localhost:5000
 
 ## Start Locally (no Docker)
 
@@ -55,8 +55,8 @@ This project runs a Streamlit web app on port 8501.
 
 2. Run the Streamlit app:
    ```bash
-   streamlit run src/web/app.py --server.port 8501
+   python src/web/app.py
    ```
 
 3. Open the app in your browser:
-   - http://localhost:8501
+   - http://localhost:5000

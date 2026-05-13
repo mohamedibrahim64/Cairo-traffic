@@ -1,0 +1,16 @@
+.venv/
+.venv311/
+.git/
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+*.pyc
+*.pyo
+*.pyd
+*.log
+models/
+build/
+dist/
+Report, presentation, demo/
+notebooks/
+project describtion/

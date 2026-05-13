@@ -21,14 +21,6 @@ from src.ml.traffic_predictor import TrafficPredictor
 from src.ml.traffic_predictor import generate_training_data
 import requests
 
-# Optional OSRM routing to draw road-following polylines in the UI
-OSRM_BASE_URL = os.getenv('OSRM_BASE_URL', 'https://router.project-osrm.org').rstrip('/')
-OSRM_PROFILE = os.getenv('OSRM_PROFILE', 'driving')
-try:
-    OSRM_TIMEOUT = float(os.getenv('OSRM_TIMEOUT', '5'))
-except ValueError:
-    OSRM_TIMEOUT = 5.0
-
 
 def get_node_coordinates(data):
     """Get coordinates for all nodes"""
@@ -68,7 +60,7 @@ def initialize_ml_predictor():
 
 
 initialize_ml_predictor()
-astar = AStarSearch(data.graph, get_node_coordinates(data), data.traffic_patterns)
+astar = AStarSearch(data.graph, get_node_coordinates(data))
 
 # ==================== Routes ====================
 
@@ -157,7 +149,6 @@ def shortest_path():
     end = req_data['end']
     algorithm = req_data.get('algorithm', 'dijkstra')
     time_hour = req_data.get('time_hour', 10)
-    avoid_roads = _normalize_avoid_roads(req_data.get('avoid_roads'))
     
     try:
         start_str = str(start)
@@ -165,24 +156,16 @@ def shortest_path():
         start_id = int(start_str) if start_str.isdigit() else start
         end_id = int(end_str) if end_str.isdigit() else end
         
-        time_varying_result = None
         if algorithm == 'dijkstra':
-            path, distance = sp.dijkstra(start_id, end_id, time_hour, avoid_roads)
+            path, distance = sp.dijkstra(start_id, end_id, time_hour)
         elif algorithm == 'astar':
-            path, distance = sp.a_star_search(start_id, end_id, time_hour, avoid_roads)
-        elif algorithm == 'time_varying':
-            time_varying_result = sp.time_varying_shortest_path(start_id, end_id, time_hour, avoid_roads)
-            path = time_varying_result.get('recommended_route', [])
-            if path == time_varying_result.get('off_peak_route'):
-                distance = time_varying_result.get('off_peak_distance')
-            else:
-                distance = time_varying_result.get('peak_distance')
+            path, distance = sp.a_star_search(start_id, end_id, time_hour)
         elif algorithm == 'greedy':
-            result = greedy.greedy_route_recommendation(start_id, end_id, avoid_roads=avoid_roads, hour=time_hour)
+            result = greedy.greedy_route_recommendation(start_id, end_id, hour=time_hour)
             path = result['path']
             distance = result['total_distance']
         else:
-            path, distance = sp.dijkstra(start_id, end_id, time_hour, avoid_roads)
+            path, distance = sp.dijkstra(start_id, end_id, time_hour)
         
         # Convert path to names + coordinates for the frontend map
         path_names = []
@@ -231,8 +214,7 @@ def shortest_path():
                 'segments': segments,
                 'distance': distance,
                 'algorithm': algorithm,
-                'osrm_geometry': osrm_geom,
-                'time_varying': time_varying_result
+                'osrm_geometry': osrm_geom
             })
 
         return jsonify({
@@ -240,8 +222,7 @@ def shortest_path():
             'path': path_names,
             'segments': segments,
             'distance': distance,
-            'algorithm': algorithm,
-            'time_varying': time_varying_result
+            'algorithm': algorithm
         })
     except Exception as e:
         return jsonify({
@@ -416,27 +397,11 @@ def emergency_route():
     start = req_data['start']
     hospital = req_data['hospital']
     priority = req_data.get('priority', 2)
-    time_hour = req_data.get('time_hour')
-    road_closures = _normalize_avoid_roads(req_data.get('road_closures'))
     
     try:
         start_id = int(start) if str(start).isdigit() else start
         hospital_id = int(hospital) if str(hospital).isdigit() else hospital
-
-        if time_hour is None:
-            time_hour = __import__('datetime').datetime.now().hour
-
-        result = astar.find_path(
-            start_id,
-            hospital_id,
-            heuristic_type='euclidean',
-            emergency_priority=int(priority),
-            time_hour=int(time_hour),
-            avoid_edges=road_closures
-        )
-
-        path = result.get('path', [])
-        distance = result.get('distance', float('inf'))
+        path, distance = sp.a_star_search(start_id, hospital_id)
         
         # Convert path to coordinates for visualization
         path_coords = []
@@ -475,14 +440,6 @@ def emergency_route():
 
         # Try OSRM geometry for the entire path
         osrm_geom = _get_osrm_geometry_for_path(path)
-        preemption_plan = None
-        if path:
-            signals = {node: {'N': 30, 'S': 30, 'E': 20, 'W': 20} for node in path}
-            severity_map = {3: 'critical', 2: 'emergency', 1: 'urgent'}
-            preemption_plan = greedy.emergency_vehicle_preemption(
-                [{'type': severity_map.get(int(priority), 'urgent'), 'path': path, 'response_time': 0}],
-                signals
-            )
         if osrm_geom:
             return jsonify({
                 'success': bool(path),
@@ -491,8 +448,7 @@ def emergency_route():
                 'osrm_geometry': osrm_geom,
                 'distance': distance,
                 'estimated_time': (distance / 40) * 60 if distance != float('inf') else 0,
-                'nodes_explored': len(path_coords),
-                'preemption_plan': preemption_plan
+                'nodes_explored': len(path_coords)
             })
 
         return jsonify({
@@ -501,8 +457,7 @@ def emergency_route():
             'segments': segments,
             'distance': distance,
             'estimated_time': (distance / 40) * 60 if distance != float('inf') else 0,
-            'nodes_explored': len(path_coords),
-            'preemption_plan': preemption_plan
+            'nodes_explored': len(path_coords)
         })
     except Exception as e:
         return jsonify({
@@ -542,68 +497,23 @@ def optimize_signals():
 def optimize_transit():
     """Optimize public transit schedules"""
     try:
-        total_buses = sum(b.buses_assigned for b in data.bus_routes)
-        buses = list(range(total_buses))
+        buses = list(range(50))
         routes = [b.stops for b in data.bus_routes]
         demands = [b.daily_passengers for b in data.bus_routes]
-
+        
         result = dp.optimize_bus_schedules(buses, routes, demands)
-        transfer_points = _get_transfer_points()
-        integration = dp.optimize_transport_integration(
-            data.metro_lines, data.bus_routes, transfer_points
-        )
         
         return jsonify({
             'success': True,
             'max_passengers': result['max_passengers_served'],
             'assignments': result['bus_assignments'],
-            'total_hours': result['total_hours_used'],
-            'integration': integration
+            'total_hours': result['total_hours_used']
         })
     except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
         })
-
-
-@app.route('/api/transit-data')
-def transit_data():
-    """Return metro/bus routes with coordinates for visualization."""
-    metro_lines = []
-    for line in data.metro_lines:
-        stops = []
-        for stop in line.stations:
-            coords = get_node_coordinate(stop)
-            if coords:
-                stops.append({'id': stop, 'x': coords[0], 'y': coords[1]})
-        metro_lines.append({
-            'id': line.id,
-            'name': line.name,
-            'stations': stops,
-            'daily_passengers': line.daily_passengers
-        })
-
-    bus_routes = []
-    for route in data.bus_routes:
-        stops = []
-        for stop in route.stops:
-            coords = get_node_coordinate(stop)
-            if coords:
-                stops.append({'id': stop, 'x': coords[0], 'y': coords[1]})
-        bus_routes.append({
-            'id': route.id,
-            'stops': stops,
-            'buses_assigned': route.buses_assigned,
-            'daily_passengers': route.daily_passengers
-        })
-
-    return jsonify({
-        'success': True,
-        'metro_lines': metro_lines,
-        'bus_routes': bus_routes,
-        'transport_demand': data.transport_demand
-    })
 
 @app.route('/api/predict-traffic', methods=['POST'])
 def predict_traffic():
@@ -662,35 +572,17 @@ def compare_algorithms():
         start_time = __import__('time').time()
         path_d, dist_d = sp.dijkstra(start, end, time_hour)
         dijkstra_time = __import__('time').time() - start_time
-
-        # A* (time-aware)
+        
+        # A*
         start_time = __import__('time').time()
-        astar_result = astar.find_path(
-            start,
-            end,
-            heuristic_type='euclidean',
-            emergency_priority=1,
-            time_hour=time_hour
-        )
+        path_a, dist_a = sp.a_star_search(start, end, time_hour)
         astar_time = __import__('time').time() - start_time
-        path_a = astar_result.get('path', [])
-        dist_a = astar_result.get('distance', float('inf'))
-
+        
         # Greedy
         start_time = __import__('time').time()
         result_g = greedy.greedy_route_recommendation(start, end, hour=time_hour)
         greedy_time = __import__('time').time() - start_time
-
-        # Time-varying Dijkstra
-        start_time = __import__('time').time()
-        tv = sp.time_varying_shortest_path(start, end, time_hour)
-        tv_time = __import__('time').time() - start_time
-        tv_path = tv.get('recommended_route', [])
-        if tv_path == tv.get('off_peak_route'):
-            tv_dist = tv.get('off_peak_distance')
-        else:
-            tv_dist = tv.get('peak_distance')
-
+        
         results = [
             {
                 'name': 'Dijkstra',
@@ -704,7 +596,6 @@ def compare_algorithms():
                 'distance': dist_a,
                 'path_length': len(path_a),
                 'time': astar_time * 1000,
-                'nodes_explored': astar_result.get('nodes_explored'),
                 'color': '#e74c3c'
             },
             {
@@ -713,13 +604,6 @@ def compare_algorithms():
                 'path_length': len(result_g.get('path', [])),
                 'time': greedy_time * 1000,
                 'color': '#f39c12'
-            },
-            {
-                'name': 'Time-Varying',
-                'distance': tv_dist if tv_dist is not None else float('inf'),
-                'path_length': len(tv_path),
-                'time': tv_time * 1000,
-                'color': '#2ecc71'
             }
         ]
         # Sanitize results for frontend (Chart.js can't plot Infinity)
@@ -783,46 +667,24 @@ def get_node_coordinate(node_id):
     return None
 
 
-def _normalize_avoid_roads(value):
-    """Normalize avoid-road inputs into a list of road key strings."""
-    if not value:
-        return []
-    if isinstance(value, str):
-        parts = [p.strip() for p in value.split(',')]
-    elif isinstance(value, list):
-        parts = [str(p).strip() for p in value]
-    else:
-        return []
-
-    cleaned = []
-    for item in parts:
-        if item and '-' in item:
-            cleaned.append(item)
-    return cleaned
-
-
-def _get_transfer_points():
-    """Compute shared transfer points between metro lines and bus routes."""
-    metro_stops = set()
-    for line in data.metro_lines:
-        metro_stops.update(line.stations)
-
-    bus_stops = set()
-    for route in data.bus_routes:
-        bus_stops.update(route.stops)
-
-    return list(metro_stops.intersection(bus_stops))
-
-def _fetch_osrm_geometry(coords):
-    """Fetch a road-following geometry from OSRM for a list of (lon, lat) tuples."""
-    if not OSRM_BASE_URL or len(coords) < 2:
+def _get_osrm_geometry_for_path(path):
+    """Request OSRM public server for a route geometry that follows roads for the given ordered node path.
+    Returns a list of {'x': lon, 'y': lat} coordinates or None on failure."""
+    if not path or len(path) < 2:
         return None
 
-    coords_str = ";".join([f"{lon},{lat}" for lon, lat in coords])
-    url = f"{OSRM_BASE_URL}/route/v1/{OSRM_PROFILE}/{coords_str}?overview=full&geometries=geojson"
+    coords_parts = []
+    for node in path:
+        c = get_node_coordinate(node)
+        if not c:
+            return None
+        lon, lat = c[0], c[1]
+        coords_parts.append(f"{lon},{lat}")
 
+    coords_str = ";".join(coords_parts)
+    url = f"http://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson"
     try:
-        resp = requests.get(url, timeout=OSRM_TIMEOUT)
+        resp = requests.get(url, timeout=5)
         if resp.status_code != 200:
             return None
         jr = resp.json()
@@ -830,44 +692,11 @@ def _fetch_osrm_geometry(coords):
         if not routes:
             return None
         geom = routes[0].get('geometry', {}).get('coordinates', [])
-        if not geom:
-            return None
-        # OSRM returns [lon, lat] pairs
-        return [{'x': c[0], 'y': c[1]} for c in geom]
+        # OSRM gives [lon, lat] pairs
+        converted = [{'x': c[0], 'y': c[1]} for c in geom]
+        return converted
     except Exception:
         return None
-
-
-def _get_osrm_geometry_for_path(path):
-    """Request OSRM for a route geometry that follows roads for the given ordered node path.
-    Returns a list of {'x': lon, 'y': lat} coordinates or None on failure."""
-    if not path or len(path) < 2:
-        return None
-
-    coords = []
-    for node in path:
-        c = get_node_coordinate(node)
-        if not c:
-            return None
-        coords.append((c[0], c[1]))
-
-    # Try a single OSRM request for the full route first.
-    full_geom = _fetch_osrm_geometry(coords)
-    if full_geom:
-        return full_geom
-
-    # Fallback: stitch per-segment geometries to reduce failure cases.
-    stitched = []
-    for i in range(len(coords) - 1):
-        segment_geom = _fetch_osrm_geometry([coords[i], coords[i + 1]])
-        if not segment_geom:
-            return None
-        if stitched:
-            stitched.extend(segment_geom[1:])
-        else:
-            stitched.extend(segment_geom)
-
-    return stitched or None
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

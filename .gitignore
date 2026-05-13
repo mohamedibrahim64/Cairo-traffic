@@ -10,8 +10,6 @@ __pycache__/
 .venv/
 .venv_check/
 venv/
-.# Additional venv names
-.venv311/
 
 # Jupyter and notebooks
 .ipynb_checkpoints/
